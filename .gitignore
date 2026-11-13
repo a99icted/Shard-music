@@ -1,0 +1,64 @@
+# Rust build output
+/target/
+**/target/
+*.pdb
+*.ilk
+
+# Local Shard data and test fixtures
+/.local-data/
+/data/
+/dist/
+*.exe
+*.dll
+*.msi
+*.msix
+*.msixbundle
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+settings.json
+preferences.json
+/audio/
+/artwork/
+/backgrounds/
+/staging/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+credentials.json
+
+# Downloaded YouTube components are installed locally by setup-youtube.ps1.
+# They are third-party binaries and must not be committed to the repository.
+/tools/
+
+# Logs and crash dumps
+*.log
+*.dmp
+/.cargo/config.toml
+
+# Local editor and OS files
+.idea/
+.vscode/
+.fleet/
+*.iml
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Cargo registry extraction markers in vendored source
+vendor/**/.cargo-ok

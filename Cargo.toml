@@ -1,0 +1,67 @@
+[package]
+name = "shard"
+version = "0.1.0"
+edition = "2024"
+description = "Local music library and playlists built with Rust and GPUI"
+license = "MIT AND Apache-2.0"
+
+[features]
+default = ["desktop"]
+desktop = ["dep:gpui", "dep:rfd", "dep:rodio", "dep:unicode-segmentation", "dep:raw-window-handle", "dep:async-channel", "dep:windows"]
+
+[dependencies]
+anyhow = "1"
+directories = "6"
+lofty = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+rand = "0.9"
+rusqlite = { version = "0.38", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+gpui = { version = "0.2.2", optional = true }
+rfd = { version = "0.15", optional = true }
+rodio = { version = "0.20", optional = true, features = ["symphonia-all"] }
+unicode-segmentation = { version = "1", optional = true }
+raw-window-handle = { version = "0.6", optional = true }
+async-channel = { version = "2", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", optional = true, features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
+
+[build-dependencies]
+resvg = { version = "0.45", default-features = false }
+embed-resource = "3"
+
+[patch.crates-io]
+gpui = { path = "vendor/gpui" }
+
+[[bin]]
+name = "shard"
+path = "src/main.rs"
+required-features = ["desktop"]
+
+[[example]]
+name = "playback_smoke"
+path = "examples/playback_smoke.rs"
+required-features = ["desktop"]
+
+[[example]]
+name = "text_layout_smoke"
+path = "examples/text_layout_smoke.rs"
+required-features = ["desktop"]
+
+[[example]]
+name = "layout_preview"
+path = "examples/layout_preview.rs"
+required-features = ["desktop"]
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+lto = "thin"
+strip = true
