@@ -42,7 +42,7 @@ pub struct PlaybackState {
     pub track_id: Option<i64>,
     pub paused: bool,
     pub position_ms: u64,
-    pub queue: PlaybackQueue,
+    pub queue: Arc<PlaybackQueue>,
     pub error: Option<String>,
 }
 
@@ -51,6 +51,7 @@ pub struct Player {
     sender: mpsc::Sender<Command>,
     state: Arc<Mutex<PlaybackState>>,
     transport_observers: Arc<Mutex<Vec<async_channel::Sender<TransportState>>>>,
+    change_observers: Arc<Mutex<Vec<async_channel::Sender<()>>>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,13 +76,56 @@ struct Engine {
     queue: PlaybackQueue,
     volume: f32,
     error: Option<String>,
-    statistics: Option<StatisticsService>,
+    statistics: Option<StatisticsWriter>,
     meter: ListeningMeter,
     measured_at: Instant,
     duration_ms: Option<u64>,
     session: String,
     pending_ms: u64,
     pending_at: i64,
+}
+
+enum StatisticsCommand {
+    Record {
+        session: String,
+        track: i64,
+        ms: u64,
+        at: i64,
+    },
+    Flush(mpsc::Sender<()>),
+}
+struct StatisticsWriter(mpsc::Sender<StatisticsCommand>);
+impl StatisticsWriter {
+    fn new(service: StatisticsService, state: Arc<Mutex<PlaybackState>>) -> Self {
+        let (sender, receiver) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("shard-statistics".into())
+            .spawn(move || {
+                while let Ok(command) = receiver.recv() {
+                    match command {
+                        StatisticsCommand::Record {
+                            session,
+                            track,
+                            ms,
+                            at,
+                        } => {
+                            if let Err(error) = service.record(&session, track, ms, at) {
+                                state.lock().unwrap().error =
+                                    Some(format!("Не удалось сохранить статистику: {error:#}"));
+                            }
+                        }
+                        StatisticsCommand::Flush(reply) => {
+                            let _ = reply.send(());
+                        }
+                    }
+                }
+            })
+            .expect("statistics worker");
+        Self(sender)
+    }
+    fn flush(&self, reply: mpsc::Sender<()>) {
+        let _ = self.0.send(StatisticsCommand::Flush(reply));
+    }
 }
 
 impl Engine {
@@ -112,7 +156,12 @@ impl Engine {
         if let Some(service) = &self.statistics
             && let Some(id) = self.queue.current()
             && self.pending_ms > 0
-            && let Err(error) = service.record(&self.session, id, self.pending_ms, self.pending_at)
+            && let Err(error) = service.0.send(StatisticsCommand::Record {
+                session: self.session.clone(),
+                track: id,
+                ms: self.pending_ms,
+                at: self.pending_at,
+            })
         {
             self.error = Some(format!("Не удалось сохранить статистику: {error:#}"));
         }
@@ -166,7 +215,6 @@ impl Engine {
 
 impl Player {
     pub fn new(volume: f32, shuffle: bool, database: Option<Database>) -> Self {
-        let statistics = database.map(StatisticsService::new);
         let (sender, receiver) = mpsc::channel();
         let mut queue = PlaybackQueue::default();
         queue.set_shuffle(shuffle);
@@ -174,10 +222,14 @@ impl Player {
             track_id: None,
             paused: false,
             position_ms: 0,
-            queue: queue.clone(),
+            queue: Arc::new(queue.clone()),
             error: None,
         }));
         let shared = state.clone();
+        let statistics =
+            database.map(|db| StatisticsWriter::new(StatisticsService::new(db), shared.clone()));
+        let change_observers = Arc::new(Mutex::new(Vec::<async_channel::Sender<()>>::new()));
+        let updates = change_observers.clone();
         let transport_observers = Arc::new(Mutex::new(
             Vec::<async_channel::Sender<TransportState>>::new(),
         ));
@@ -200,6 +252,7 @@ impl Player {
             };
             loop {
                 let mut acknowledge = None;
+                let mut flush_statistics = false;
                 let command = if engine.sink.as_ref().is_none_or(Sink::is_paused) {
                     // Idle and paused playback needs no periodic audio-worker wakeups.
                     receiver
@@ -220,6 +273,7 @@ impl Player {
                         | Command::Enqueue(..)
                         | Command::Remove(..))
                 );
+                let mut notify = command.is_ok();
                 engine.measure();
                 // Flush before any command can change the current track or seek position.
                 if !matches!(command, Err(mpsc::RecvTimeoutError::Timeout)) {
@@ -284,7 +338,10 @@ impl Player {
                     }
                     Ok(Command::Shuffle(shuffle)) => engine.queue.set_shuffle(shuffle),
                     Ok(Command::Repeat(repeat)) => engine.queue.set_repeat(repeat),
-                    Ok(Command::Flush(reply)) => acknowledge = Some(reply),
+                    Ok(Command::Flush(reply)) => {
+                        acknowledge = Some(reply);
+                        flush_statistics = true;
+                    }
                     Ok(Command::Seek(position)) => {
                         if let Some(sink) = &engine.sink {
                             if let Err(error) = sink.try_seek(position) {
@@ -317,13 +374,14 @@ impl Player {
                     engine.queue.finish_track();
                     engine.play_current();
                     queue_changed = true;
+                    notify = true;
                 }
                 {
                     let mut state = shared.lock().unwrap();
                     let previous_transport = state.transport();
                     state.track_id = engine.queue.current();
                     if queue_changed {
-                        state.queue = engine.queue.clone();
+                        state.queue = Arc::new(engine.queue.clone());
                     }
                     state.paused = engine.sink.as_ref().is_some_and(Sink::is_paused);
                     state.position_ms = engine
@@ -344,7 +402,21 @@ impl Player {
                     }
                 }
                 if let Some(reply) = acknowledge {
-                    let _ = reply.send(());
+                    if flush_statistics && let Some(statistics) = &engine.statistics {
+                        // Preserve shutdown durability without blocking playback behind SQLite.
+                        statistics.flush(reply);
+                    } else {
+                        let _ = reply.send(());
+                    }
+                }
+                if notify {
+                    updates
+                        .lock()
+                        .unwrap()
+                        .retain(|sender| match sender.try_send(()) {
+                            Ok(()) | Err(async_channel::TrySendError::Full(_)) => true,
+                            Err(async_channel::TrySendError::Closed(_)) => false,
+                        });
                 }
             }
         });
@@ -352,6 +424,7 @@ impl Player {
             sender,
             state,
             transport_observers,
+            change_observers,
         }
     }
     pub fn start(&self, tracks: Vec<PlaybackTrack>, selected: i64) {
@@ -423,6 +496,11 @@ impl Player {
         let state = self.state.lock().unwrap();
         let _ = sender.try_send(state.transport());
         self.transport_observers.lock().unwrap().push(sender);
+        receiver
+    }
+    pub fn subscribe_changes(&self) -> async_channel::Receiver<()> {
+        let (sender, receiver) = async_channel::bounded(1);
+        self.change_observers.lock().unwrap().push(sender);
         receiver
     }
     pub fn take_error(&self) -> Option<String> {

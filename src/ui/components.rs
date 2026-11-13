@@ -545,28 +545,23 @@ impl MusicApp {
                     ),
             );
         } else {
+            let queue = state.queue.clone();
             panel = panel.child(
-                div()
-                    .id("queue-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .children(
-                        state
-                            .queue
-                            .upcoming()
-                            .iter()
-                            .filter_map(|id| self.tracks.iter().find(|track| track.id == *id))
-                            .enumerate()
-                            .map(|(index, track)| {
-                                let id = track.id;
-                                div()
+                uniform_list(
+                    "queue-scroll",
+                    queue.upcoming().len(),
+                    cx.processor(move |app, range: std::ops::Range<usize>, _, cx| {
+                        range
+                            .map(|index| {
+                                let id = queue.upcoming()[index];
+                                let mut row = div()
                                     .id(("queued", id as u64))
+                                    .w_full()
+                                    .h(px(64.))
                                     .flex()
                                     .items_center()
                                     .gap_2()
                                     .p_2()
-                                    .mb_1()
                                     .rounded_lg()
                                     .border_1()
                                     .border_color(rgb(colors.panel))
@@ -578,22 +573,28 @@ impl MusicApp {
                                             .text_xs()
                                             .text_color(rgb(colors.muted))
                                             .child((index + 1).to_string()),
-                                    )
-                                    .child(self.track_caption(track, false))
-                                    .child(
-                                        self.icon_button(("unqueue", id as u64), "×", false)
-                                            .on_click(cx.listener(move |app, _, _, cx| {
-                                                cx.stop_propagation();
-                                                app.player.remove(id);
-                                                cx.notify();
-                                            })),
-                                    )
-                                    .on_click(cx.listener(move |app, _, _, cx| {
-                                        app.player.select(id);
-                                        cx.notify();
-                                    }))
-                            }),
-                    ),
+                                    );
+                                if let Some(track) = app
+                                    .track_index
+                                    .get(&id)
+                                    .and_then(|index| app.tracks.get(*index))
+                                {
+                                    row = row.child(app.track_caption(track, false));
+                                }
+                                row.child(
+                                    app.icon_button(("unqueue", id as u64), "×", false)
+                                        .on_click(cx.listener(move |app, _, _, cx| {
+                                            cx.stop_propagation();
+                                            app.player.remove(id);
+                                        })),
+                                )
+                                .on_click(cx.listener(move |app, _, _, _| app.player.select(id)))
+                            })
+                            .collect()
+                    }),
+                )
+                .flex_1()
+                .min_h_0(),
             );
         }
         panel = panel.child(
@@ -710,10 +711,11 @@ impl MusicApp {
                 cx.notify();
             }
             SliderKind::Seek => {
+                let current = self.player.progress().0;
                 if let Some(duration) = self
                     .tracks
                     .iter()
-                    .find(|track| Some(track.id) == self.player.state().track_id)
+                    .find(|track| Some(track.id) == current)
                     .and_then(|track| track.duration_ms)
                 {
                     self.seek_preview = Some((duration.max(0) as f64 * value as f64) as u64);

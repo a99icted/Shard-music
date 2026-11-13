@@ -12,12 +12,32 @@ pub(super) fn listening_time(ms: i64) -> String {
 }
 
 impl MusicApp {
-    pub(super) fn refresh_statistics(&mut self) {
-        match self.statistics.summary() {
-            Ok(summary) => self.listening = summary,
-            Err(error) => self.error = Some(format!("Не удалось прочитать статистику: {error:#}")),
+    pub(super) fn refresh_statistics(&mut self, cx: &mut Context<Self>) {
+        if self.statistics_loading {
+            return;
         }
+        self.statistics_loading = true;
         self.statistics_updated = Instant::now();
+        let service = self.statistics.clone();
+        let task = cx
+            .background_executor()
+            .spawn(async move { service.summary() });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            let _ = this.update(cx, |app, cx| {
+                app.statistics_loading = false;
+                match result {
+                    Ok(summary) => app.listening = summary,
+                    Err(error) => {
+                        app.error = Some(format!("Не удалось прочитать статистику: {error:#}"))
+                    }
+                }
+                if app.home_open {
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     pub(super) fn home_view(&self, viewport: Size<Pixels>, cx: &mut Context<Self>) -> AnyElement {

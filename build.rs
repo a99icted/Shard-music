@@ -44,7 +44,14 @@ fn main() {
         && env::var_os("CARGO_FEATURE_DESKTOP").is_some()
     {
         let resource = out.join("shard.rc");
-        resources.push_str("1 VERSIONINFO\nFILEVERSION 0,1,0,0\nPRODUCTVERSION 0,1,0,0\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"ProductName\", \"Shard\\0\"\n   VALUE \"FileDescription\", \"Shard Music Player\\0\"\n   VALUE \"OriginalFilename\", \"shard.exe\\0\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n");
+        let version = format!(
+            "{},{},{},0",
+            env::var("CARGO_PKG_VERSION_MAJOR").unwrap(),
+            env::var("CARGO_PKG_VERSION_MINOR").unwrap(),
+            env::var("CARGO_PKG_VERSION_PATCH").unwrap()
+        );
+        let version_info = "1 VERSIONINFO\nFILEVERSION 0,1,0,0\nPRODUCTVERSION 0,1,0,0\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"ProductName\", \"Shard\\0\"\n   VALUE \"FileDescription\", \"Shard Music Player\\0\"\n   VALUE \"OriginalFilename\", \"shard.exe\\0\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n".replace("0,1,0,0", &version);
+        resources.push_str(&version_info);
         fs::write(&resource, resources).unwrap();
         embed_resource::compile_for_everything(resource, embed_resource::NONE)
             .manifest_required()

@@ -142,6 +142,7 @@ fn main() -> Result<()> {
     );
     player.toggle();
     wait(&player, |s| s.paused)?;
+    player.flush_and_wait();
     let stats = shard::statistics::StatisticsService::new(db);
     let before = stats.summary()?.year_ms;
     ensure!(
@@ -162,6 +163,7 @@ fn main() -> Result<()> {
     player.set_repeat(shard::queue::RepeatMode::Off);
     player.toggle();
     wait(&player, |s| s.track_id.is_none())?;
+    player.flush_and_wait();
     ensure!(
         stats.summary()?.top[0].plays >= 2,
         "Repeat sessions did not count separately"

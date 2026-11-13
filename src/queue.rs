@@ -1,5 +1,6 @@
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -55,8 +56,9 @@ impl PlaybackQueue {
 
     pub fn start(&mut self, ids: impl IntoIterator<Item = i64>, selected: i64) {
         self.original.clear();
+        let mut seen = HashSet::new();
         for id in ids {
-            if !self.original.contains(&id) {
+            if seen.insert(id) {
                 self.original.push(id);
             }
         }
@@ -119,8 +121,13 @@ impl PlaybackQueue {
         if shuffled {
             self.order[start..].shuffle(&mut rand::rng());
         } else {
-            self.order[start..]
-                .sort_by_key(|id| self.original.iter().position(|original| original == id));
+            let positions: HashMap<_, _> = self
+                .original
+                .iter()
+                .enumerate()
+                .map(|(index, id)| (*id, index))
+                .collect();
+            self.order[start..].sort_by_key(|id| positions.get(id).copied());
         }
     }
 

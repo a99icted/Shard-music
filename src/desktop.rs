@@ -34,7 +34,7 @@ struct Tray {
 }
 impl Global for Tray {}
 
-fn hwnd(window: &Window) -> Result<HWND> {
+pub(crate) fn hwnd(window: &Window) -> Result<HWND> {
     let handle = HasWindowHandle::window_handle(window)
         .map_err(|error| anyhow::anyhow!("Не удалось получить окно Windows: {error}"))?;
     match handle.as_raw() {

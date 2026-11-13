@@ -2,6 +2,67 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
+enum WriteCommand {
+    Save(Preferences),
+    Flush(std::sync::mpsc::Sender<()>),
+}
+
+/// One ordered writer keeps fsync and atomic replacement away from input handlers.
+pub struct PreferencesWriter {
+    sender: std::sync::mpsc::Sender<WriteCommand>,
+    error: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+}
+impl PreferencesWriter {
+    pub fn new(root: std::path::PathBuf) -> Self {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let error = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let failures = error.clone();
+        std::thread::Builder::new()
+            .name("shard-preferences".into())
+            .spawn(move || {
+                let mut pending = None;
+                while let Some(command) = pending.take().or_else(|| receiver.recv().ok()) {
+                    match command {
+                        WriteCommand::Save(mut preferences) => {
+                            // Rapid slider/wheel input only needs the latest value on disk.
+                            // A flush remains a barrier and must not be overtaken by a save.
+                            while let Ok(next) = receiver.try_recv() {
+                                match next {
+                                    WriteCommand::Save(latest) => preferences = latest,
+                                    flush => {
+                                        pending = Some(flush);
+                                        break;
+                                    }
+                                }
+                            }
+                            if let Err(error) = preferences.save(&root) {
+                                *failures.lock().unwrap() =
+                                    Some(format!("Не удалось сохранить настройки: {error:#}"));
+                            }
+                        }
+                        WriteCommand::Flush(reply) => {
+                            let _ = reply.send(());
+                        }
+                    }
+                }
+            })
+            .expect("preferences worker");
+        Self { sender, error }
+    }
+    pub fn save(&self, preferences: Preferences) {
+        let _ = self.sender.send(WriteCommand::Save(preferences));
+    }
+    pub fn flush_and_wait(&self) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        if self.sender.send(WriteCommand::Flush(sender)).is_ok() {
+            let _ = receiver.recv_timeout(std::time::Duration::from_secs(5));
+        }
+    }
+    pub fn take_error(&self) -> Option<String> {
+        self.error.lock().unwrap().take()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Preferences {
@@ -49,6 +110,20 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn background_saves_keep_latest_settings_and_flush_on_shutdown() {
+        let root = tempfile::tempdir().unwrap();
+        let writer = PreferencesWriter::new(root.path().to_path_buf());
+        for volume in [0.1, 0.2, 0.3] {
+            writer.save(Preferences {
+                volume,
+                ..Default::default()
+            });
+        }
+        writer.flush_and_wait();
+        assert_eq!(Preferences::load(root.path()).volume, 0.3);
+        assert!(writer.take_error().is_none());
+    }
     #[test]
     fn preferences_survive_restart_and_handle_invalid_files() {
         let root = tempfile::tempdir().unwrap();

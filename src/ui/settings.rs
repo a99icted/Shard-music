@@ -130,11 +130,13 @@ impl MusicApp {
                         if app.busy.is_some() {
                             return;
                         }
-                        if let Err(error) = app.background_service.remove(scope) {
-                            app.error = Some(format!("{error:#}"));
-                        }
-                        app.blur_preview = None;
-                        app.refresh(cx);
+                        let service = app.background_service.clone();
+                        app.run_job(
+                            "Убираем фон…",
+                            move || service.remove(scope),
+                            |app, (), _| app.blur_preview = None,
+                            cx,
+                        );
                     })),
                 );
         } else {

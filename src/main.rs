@@ -4,12 +4,31 @@
 mod desktop;
 mod input;
 mod player;
+#[cfg(windows)]
+mod single_instance;
 mod ui;
 
 use gpui::{App, AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
 use shard::{db::Database, services::application_directory};
 
 fn main() {
+    #[cfg(windows)]
+    let instance = match single_instance::Instance::acquire() {
+        Ok(Some(instance)) => instance,
+        Ok(None) => return,
+        Err(error) => {
+            rfd::MessageDialog::new()
+                .set_title("Shard — запуск")
+                .set_description(format!("{error:#}"))
+                .set_level(rfd::MessageLevel::Error)
+                .show();
+            return;
+        }
+    };
+    #[cfg(windows)]
+    let instance = std::rc::Rc::new(instance);
+    #[cfg(windows)]
+    let application_instance = instance.clone();
     let database = application_directory().and_then(Database::open);
     let database = match database {
         Ok(db) => db,
@@ -39,6 +58,10 @@ fn main() {
                     ..Default::default()
                 },
                 |window, cx| {
+                    #[cfg(windows)]
+                    if let Ok(hwnd) = desktop::hwnd(window) {
+                        application_instance.bind(hwnd);
+                    }
                     let view = cx.new(|cx| ui::MusicApp::new(database, window, cx));
                     #[cfg(windows)]
                     if let Err(error) = desktop::install(window, cx, view.read(cx).player()) {
@@ -68,4 +91,7 @@ fn main() {
             .detach();
             cx.activate(true);
         });
+    // Keep the guard and activation window alive until the GPUI event loop exits.
+    #[cfg(windows)]
+    drop(instance);
 }
