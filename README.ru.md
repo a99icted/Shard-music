@@ -63,7 +63,7 @@ cargo test --locked --all-targets
 
 | Монета / сеть | Адрес кошелька |
 | --- | --- |
-| TON (GRAM) | `UQDhOStCTVs8CYld6vAJi_wEbaAdzudKKmodxW68oy7R1K81` |
+| GRAM (TON) | `UQDhOStCTVs8CYld6vAJi_wEbaAdzudKKmodxW68oy7R1K81` |
 | ETH (ETH) | `0xa0206Dc84e56b49480319CdC6A6A9c983747d4BC` |
 | BTC (BTC) | `bc1qzlnzamh2krcsdfgjwfnmz8xst65vzuxyawjcc8` |
 | SOL (SOL) | `6oFWiDemRLD5NsvfFr1fdEWAjYQJmuhDKUnWEfdnqAjs` |
