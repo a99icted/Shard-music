@@ -61,7 +61,7 @@ Build output, downloaded tools, caches, and personal libraries are excluded from
 
 If you'd like to support Shard's development, you can donate to one of these wallets:
 
-| Coin / network | Wallet address |
+| network / Coin | Wallet address |
 | --- | --- |
 | TON (GRAM) | `UQDhOStCTVs8CYld6vAJi_wEbaAdzudKKmodxW68oy7R1K81` |
 | ETH (ETH) | `0xa0206Dc84e56b49480319CdC6A6A9c983747d4BC` |
