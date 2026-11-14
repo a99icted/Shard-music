@@ -5,13 +5,26 @@ pub(super) enum SliderKind {
     Volume,
     Seek,
     BackgroundBlur,
+    HeaderHue,
+    HeaderSaturation,
+    HeaderLightness,
 }
 impl SliderKind {
+    fn is_header(self) -> bool {
+        matches!(
+            self,
+            Self::HeaderHue | Self::HeaderSaturation | Self::HeaderLightness
+        )
+    }
+
     fn index(self) -> usize {
         match self {
             Self::Volume => 0,
             Self::Seek => 1,
             Self::BackgroundBlur => 2,
+            Self::HeaderHue => 3,
+            Self::HeaderSaturation => 4,
+            Self::HeaderLightness => 5,
         }
     }
 }
@@ -141,9 +154,9 @@ impl MusicApp {
                             .text_xs()
                             .text_color(rgba((heading_color << 8) | 0xbb))
                             .child(if playlist.is_some() {
-                                "ВАШ ПЛЕЙЛИСТ"
+                                tr("ВАШ ПЛЕЙЛИСТ")
                             } else {
-                                "МУЗЫКАЛЬНАЯ БИБЛИОТЕКА"
+                                tr("МУЗЫКАЛЬНАЯ БИБЛИОТЕКА")
                             })
                     }))
                     .child(
@@ -165,15 +178,39 @@ impl MusicApp {
                         div()
                             .text_sm()
                             .text_color(rgba((heading_color << 8) | 0xbb))
-                            .child(format!("Треков: {count}  ·  {} мин", duration / 60_000)),
+                            .child(localized_format!(
+                                "Треков: {count}  ·  {} мин",
+                                "Tracks: {count}  ·  {} min",
+                                duration / 60_000
+                            )),
                     )
                     .children((playlist.is_some() && !dense).then(|| {
                         div()
                             .text_xs()
                             .text_color(rgba((heading_color << 8) | 0x99))
-                            .child("Нажмите на обложку, чтобы изменить оформление")
+                            .child(tr("Нажмите на обложку, чтобы изменить оформление"))
                     })),
             )
+            .children(playlist.map(|playlist| {
+                let id = playlist.id;
+                let actions = playlist.clone();
+                div()
+                    .flex()
+                    .gap_2()
+                    .items_center()
+                    .child(
+                        self.icon_button("playlist-appearance", "✎", false)
+                            .on_click(cx.listener(move |app, _, window, cx| {
+                                app.open_modal(Modal::PlaylistAppearance(id), window, cx)
+                            })),
+                    )
+                    .child(
+                        self.icon_button("playlist-menu", "⋯", false)
+                            .on_click(cx.listener(move |app, _, window, cx| {
+                                app.open_modal(Modal::PlaylistActions(actions.clone()), window, cx)
+                            })),
+                    )
+            }))
             .into_any_element()
     }
 
@@ -231,9 +268,9 @@ impl MusicApp {
                     .gap_2()
                     .child(div().flex_1().text_xs().text_color(rgb(colors.text)).child(
                         if self.download_cancel.is_some() {
-                            "↓ Загрузка"
+                            tr("↓ Загрузка")
                         } else {
-                            "Обработка"
+                            tr("Обработка")
                         },
                     ))
                     .child(
@@ -269,9 +306,9 @@ impl MusicApp {
                     .text_xs()
                     .text_color(rgb(colors.muted))
                     .child(if cancel.load(Ordering::Relaxed) {
-                        "Останавливаем…"
+                        tr("Останавливаем…")
                     } else {
-                        "Остановить"
+                        tr("Остановить")
                     })
                     .on_click(cx.listener(move |_, _, _, cx| {
                         cx.stop_propagation();
@@ -308,7 +345,7 @@ impl MusicApp {
                     .child(
                         self.message
                             .clone()
-                            .unwrap_or("Не удалось выполнить действие".into()),
+                            .unwrap_or(tr("Не удалось выполнить действие").into()),
                     ),
             );
         if has_error {
@@ -320,9 +357,9 @@ impl MusicApp {
                     .text_color(rgb(colors.muted))
                     .hover(move |s| s.text_color(rgb(colors.text)))
                     .child(if self.error_details_open {
-                        "Свернуть"
+                        tr("Свернуть")
                     } else {
-                        "Подробнее"
+                        tr("Подробнее")
                     })
                     .on_click(cx.listener(|app, _, _, cx| {
                         app.error_details_open = !app.error_details_open;
@@ -475,7 +512,7 @@ impl MusicApp {
                         div()
                             .text_lg()
                             .font_weight(FontWeight::SEMIBOLD)
-                            .child("Очередь"),
+                            .child(tr("Очередь")),
                     )
                     .child(
                         self.icon_button("hide-queue", "×", false)
@@ -486,7 +523,7 @@ impl MusicApp {
                 div()
                     .text_xs()
                     .text_color(rgb(colors.muted))
-                    .child("СЕЙЧАС ИГРАЕТ"),
+                    .child(tr("СЕЙЧАС ИГРАЕТ")),
             );
         if let Some(track) = current {
             panel = panel.child(
@@ -505,24 +542,21 @@ impl MusicApp {
                 div()
                     .text_sm()
                     .text_color(rgb(colors.muted))
-                    .child("Выберите трек или нажмите «Слушать»"),
+                    .child(tr("Выберите трек или нажмите «Слушать»")),
             );
         }
-        panel = panel
-            .child(
-                div()
-                    .mt_2()
-                    .text_xs()
-                    .text_color(rgb(colors.muted))
-                    .child(format!("ДАЛЕЕ · {}", state.queue.upcoming().len())),
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .overflow_hidden()
-                    .text_ellipsis()
-                    .child(self.playback_context.clone()),
-            );
+        panel =
+            panel
+                .child(div().mt_2().text_xs().text_color(rgb(colors.muted)).child(
+                    localized_format!("ДАЛЕЕ · {}", "UP NEXT · {}", state.queue.upcoming().len()),
+                ))
+                .child(
+                    div()
+                        .text_sm()
+                        .overflow_hidden()
+                        .text_ellipsis()
+                        .child(self.playback_context.clone()),
+                );
         if state.queue.upcoming().is_empty() {
             panel = panel.child(
                 div()
@@ -535,13 +569,13 @@ impl MusicApp {
                         div()
                             .text_color(rgb(colors.muted))
                             .text_sm()
-                            .child("В очереди пока пусто"),
+                            .child(tr("В очереди пока пусто")),
                     )
                     .child(
                         div()
                             .text_xs()
                             .text_color(rgb(colors.muted))
-                            .child("Выберите подборку или добавьте трек через меню ⋯"),
+                            .child(tr("Выберите подборку или добавьте трек через меню ⋯")),
                     ),
             );
         } else {
@@ -605,9 +639,9 @@ impl MusicApp {
                 .text_xs()
                 .text_color(rgb(colors.muted))
                 .child(if self.preferences.shuffle {
-                    "⤨  Перемешивание включено"
+                    tr("⤨  Перемешивание включено")
                 } else {
-                    "В порядке выбранной подборки"
+                    tr("В порядке выбранной подборки")
                 }),
         );
         if overlay {
@@ -631,6 +665,23 @@ impl MusicApp {
     ) -> AnyElement {
         let colors = self.colors();
         let weak = cx.weak_entity();
+        let header = kind.is_header();
+        let color = self.header_color_state(self.background_scope());
+        let stops: Vec<Hsla> = match kind {
+            SliderKind::HeaderHue => (0..=6)
+                .map(|step| hsla(step as f32 / 6., 1., 0.5, 1.))
+                .collect(),
+            SliderKind::HeaderSaturation => vec![
+                hsla(color.h, 0., color.l, 1.),
+                hsla(color.h, 1., color.l, 1.),
+            ],
+            SliderKind::HeaderLightness => vec![
+                hsla(0., 0., 0., 1.),
+                hsla(color.h, color.s, 0.5, 1.),
+                hsla(0., 0., 1., 1.),
+            ],
+            _ => Vec::new(),
+        };
         div()
             .id(id)
             .relative()
@@ -641,17 +692,26 @@ impl MusicApp {
             .items_center()
             .child(
                 div()
-                    .h(px(4.))
+                    .h(px(if header { 12. } else { 4. }))
                     .w_full()
                     .rounded_full()
                     .bg(rgb(colors.border))
-                    .child(
+                    .flex()
+                    .overflow_hidden()
+                    .children(stops.windows(2).map(|pair| {
+                        div().h_full().flex_1().bg(linear_gradient(
+                            90.,
+                            linear_color_stop(pair[0], 0.),
+                            linear_color_stop(pair[1], 1.),
+                        ))
+                    }))
+                    .children((!header).then(|| {
                         div()
                             .h_full()
                             .w(relative(value.clamp(0., 1.)))
                             .rounded_full()
-                            .bg(rgb(colors.accent)),
-                    ),
+                            .bg(rgb(colors.accent))
+                    })),
             )
             .child(
                 div()
@@ -678,6 +738,9 @@ impl MusicApp {
                 MouseButton::Left,
                 cx.listener(move |app, event: &MouseDownEvent, _, cx| {
                     cx.stop_propagation();
+                    if kind.is_header() && app.busy.is_some() {
+                        return;
+                    }
                     app.dragging_slider = Some(kind);
                     app.change_slider(kind, event.position, cx);
                 }),
@@ -696,7 +759,12 @@ impl MusicApp {
             .into_any_element()
     }
 
-    fn change_slider(&mut self, kind: SliderKind, position: Point<Pixels>, cx: &mut Context<Self>) {
+    pub(super) fn change_slider(
+        &mut self,
+        kind: SliderKind,
+        position: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
         let Some(bounds) = self.slider_bounds[kind.index()] else {
             return;
         };
@@ -705,6 +773,21 @@ impl MusicApp {
         }
         let value = ((position.x - bounds.left()) / bounds.size.width).clamp(0., 1.);
         match kind {
+            SliderKind::HeaderHue | SliderKind::HeaderSaturation | SliderKind::HeaderLightness => {
+                let id = self.background_scope();
+                let mut color = self.header_color_state(id);
+                match kind {
+                    SliderKind::HeaderHue => color.h = value,
+                    SliderKind::HeaderSaturation => color.s = value,
+                    _ => color.l = value,
+                }
+                self.header_color_draft = Some((id, color));
+                self.input.update(cx, |input, cx| {
+                    input.set_value(&format!("#{:06X}", Self::header_color_value(color)));
+                    cx.notify();
+                });
+                cx.notify();
+            }
             SliderKind::Volume => self.set_volume(value, cx),
             SliderKind::BackgroundBlur => {
                 self.blur_preview = Some((value * 40.).round() as u8);
@@ -730,6 +813,13 @@ impl MusicApp {
             Some(SliderKind::BackgroundBlur) => {
                 if let Some(blur) = self.blur_preview.take() {
                     self.apply_background_blur(self.background_scope(), blur, cx);
+                }
+            }
+            Some(
+                SliderKind::HeaderHue | SliderKind::HeaderSaturation | SliderKind::HeaderLightness,
+            ) => {
+                if let Some((id, color)) = self.header_color_draft {
+                    self.set_playlist_color(id, Some(Self::header_color_value(color)), cx);
                 }
             }
             Some(SliderKind::Volume) => self.save_preferences(),
@@ -774,13 +864,13 @@ impl MusicApp {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .child(div().text_sm().child("Музыка всегда рядом"))
+                    .child(div().text_sm().child(tr("Музыка всегда рядом")))
                     .child(
                         div()
                             .text_xs()
                             .mt_1()
                             .text_color(rgb(colors.muted))
-                            .child("Выберите трек в библиотеке"),
+                            .child(tr("Выберите трек в библиотеке")),
                     ),
             )
         };
@@ -845,9 +935,9 @@ impl MusicApp {
                         self.icon_button(
                             "repeat-player",
                             match self.preferences.repeat {
-                                RepeatMode::Off => "↻ Выкл",
-                                RepeatMode::All => "↻ Всё",
-                                RepeatMode::One => "↻ Трек",
+                                RepeatMode::Off => tr("↻ Выкл"),
+                                RepeatMode::All => tr("↻ Всё"),
+                                RepeatMode::One => tr("↻ Трек"),
                             },
                             self.preferences.repeat != RepeatMode::Off,
                         )
@@ -897,7 +987,7 @@ impl MusicApp {
                         colors.muted
                     }))
                     .hover(move |s| s.bg(rgb(colors.button_hover)))
-                    .child("≡ Очередь")
+                    .child(tr("≡ Очередь"))
                     .on_click(cx.listener(|app, _, _, cx| app.toggle_queue(cx))),
             )
             .child(
@@ -1002,7 +1092,7 @@ impl MusicApp {
         let short = viewport.height < px(620.);
         let active_context =
             state.track_id.is_some() && self.playback_playlist == self.selected_playlist;
-        let mut controls = div()
+        let controls = div()
             .flex_shrink_0()
             .flex()
             .flex_wrap()
@@ -1012,9 +1102,9 @@ impl MusicApp {
                 self.button(
                     "play-collection",
                     if active_context && !state.paused {
-                        "Ⅱ  Пауза"
+                        tr("Ⅱ  Пауза")
                     } else {
-                        "▶  Слушать"
+                        tr("▶  Слушать")
                     },
                     true,
                 )
@@ -1023,33 +1113,11 @@ impl MusicApp {
             .child(
                 self.button(
                     "shuffle-collection",
-                    "⤨  Перемешать",
+                    tr("⤨  Перемешать"),
                     self.preferences.shuffle,
                 )
-                .on_click(cx.listener(|app, _, _, cx| app.toggle_shuffle(cx))),
+                .on_click(cx.listener(|app, _, _, cx| app.shuffle_collection(cx))),
             );
-        if let Some(id) = self.selected_playlist {
-            controls = controls.child(self.button("pick-tracks", "+  Треки", false).on_click(
-                cx.listener(move |app, _, window, cx| {
-                    app.open_modal(Modal::PickTracks(id), window, cx)
-                }),
-            ));
-            controls = controls.child(
-                self.button("playlist-appearance", "Оформление", false)
-                    .on_click(cx.listener(move |app, _, window, cx| {
-                        app.open_modal(Modal::PlaylistAppearance(id), window, cx)
-                    })),
-            );
-            if let Some(playlist) = self.playlists.iter().find(|p| p.id == id).cloned() {
-                controls = controls.child(
-                    self.button("delete-playlist", "Удалить", false)
-                        .text_color(rgb(0xf1aaa0))
-                        .on_click(cx.listener(move |app, _, window, cx| {
-                            app.open_modal(Modal::DeletePlaylist(playlist.clone()), window, cx)
-                        })),
-                );
-            }
-        }
         let mut content = div()
             .id("collection-content")
             .w_full()
@@ -1079,9 +1147,9 @@ impl MusicApp {
                         self.button(
                             "import",
                             if compact {
-                                "+  Музыка"
+                                tr("+  Музыка")
                             } else {
-                                "+  Добавить музыку"
+                                tr("+  Добавить музыку")
                             },
                             true,
                         )
@@ -1099,12 +1167,12 @@ impl MusicApp {
                 .flex()
                 .items_center()
                 .justify_between()
-                .child(div().font_weight(FontWeight::SEMIBOLD).child("Треки"))
+                .child(div().font_weight(FontWeight::SEMIBOLD).child(tr("Треки")))
                 .child(div().text_xs().text_color(rgb(colors.muted)).child(
                     if self.selected_playlist.is_some() {
-                        "В порядке плейлиста"
+                        tr("В порядке плейлиста")
                     } else {
-                        "Недавно добавленные"
+                        tr("Недавно добавленные")
                     },
                 )),
         );
@@ -1125,18 +1193,18 @@ impl MusicApp {
                             .child("♫"),
                     )
                     .child(div().text_lg().child(if searching {
-                        "Ничего не найдено"
+                        tr("Ничего не найдено")
                     } else {
-                        "Здесь будет ваша музыка"
+                        tr("Здесь будет ваша музыка")
                     }))
                     .child(
                         div()
                             .text_sm()
                             .text_color(rgb(colors.muted))
                             .child(if searching {
-                                "Попробуйте другое название или исполнителя"
+                                tr("Попробуйте другое название или исполнителя")
                             } else {
-                                "Добавьте музыку или выберите треки из библиотеки"
+                                tr("Добавьте музыку или выберите треки из библиотеки")
                             }),
                     ),
             );
@@ -1151,8 +1219,8 @@ impl MusicApp {
                     .text_xs()
                     .text_color(rgb(colors.muted))
                     .child(div().w_7().child("#"))
-                    .child(div().flex_1().child("НАЗВАНИЕ / ИСПОЛНИТЕЛЬ"))
-                    .child(div().w_12().child("ВРЕМЯ"))
+                    .child(div().flex_1().child(tr("НАЗВАНИЕ / ИСПОЛНИТЕЛЬ")))
+                    .child(div().w_12().child(tr("ВРЕМЯ")))
                     .child(div().w(px(76.)))
             }));
         }
@@ -1398,7 +1466,7 @@ impl MusicApp {
                     .overflow_hidden()
                     .text_ellipsis()
                     .child(if track.artist.is_empty() {
-                        "Неизвестный исполнитель".into()
+                        tr("Неизвестный исполнитель").into()
                     } else {
                         track.artist.clone()
                     }),

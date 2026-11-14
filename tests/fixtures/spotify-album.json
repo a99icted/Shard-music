@@ -1,0 +1,55 @@
+{
+  "uri": "spotify:album:5dABmDwage8L9rZ4SFpMVM",
+  "title": "Dead Sea Live (Acoustic Live)",
+  "type": "album",
+  "trackList": [
+    {
+      "uri": "spotify:track:3LuVARmTf1iY1EsLFIDHo2",
+      "title": "Красный Флаг - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 172377
+    },
+    {
+      "uri": "spotify:track:4hJvDaCN9ZHJiH8kg1VSVs",
+      "title": "Дом (Лондон, Прага, Ницца) - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 172398
+    },
+    {
+      "uri": "spotify:track:0k1rVx19S8lrjHuSi2ZVtB",
+      "title": "Повод - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 167916
+    },
+    {
+      "uri": "spotify:track:2n79FsXet0d7JAMjbNJQnb",
+      "title": "Антидепрессанты - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 179865
+    },
+    {
+      "uri": "spotify:track:08LKY645KgYD3buqBg65Nx",
+      "title": "Пустой Вокзал - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 188249
+    },
+    {
+      "uri": "spotify:track:1hjRkfWTgRrnR5EAuAMgLy",
+      "title": "Цветок - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 163638
+    },
+    {
+      "uri": "spotify:track:6r3HWtpmejJnACYh5oSCBd",
+      "title": "Новый Мерин - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 141618
+    },
+    {
+      "uri": "spotify:track:7EKI3fDydT5CkRn6h0MWaW",
+      "title": "Последняя Любовь - Acoustic Live",
+      "subtitle": "MORGENSHTERN",
+      "duration": 154176
+    }
+  ]
+}

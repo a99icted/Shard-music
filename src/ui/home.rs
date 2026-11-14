@@ -3,11 +3,16 @@ use super::*;
 pub(super) fn listening_time(ms: i64) -> String {
     let seconds = ms.max(0) / 1000;
     if seconds < 60 {
-        format!("{seconds} сек")
+        localized_format!("{seconds} сек", "{seconds} sec")
     } else if seconds < 3600 {
-        format!("{} мин", seconds / 60)
+        localized_format!("{} мин", "{} min", seconds / 60)
     } else {
-        format!("{} ч {} мин", seconds / 3600, seconds % 3600 / 60)
+        localized_format!(
+            "{} ч {} мин",
+            "{} hr {} min",
+            seconds / 3600,
+            seconds % 3600 / 60
+        )
     }
 }
 
@@ -29,7 +34,10 @@ impl MusicApp {
                 match result {
                     Ok(summary) => app.listening = summary,
                     Err(error) => {
-                        app.error = Some(format!("Не удалось прочитать статистику: {error:#}"))
+                        app.error = Some(localized_format!(
+                            "Не удалось прочитать статистику: {error:#}",
+                            "Could not read statistics: {error:#}"
+                        ))
                     }
                 }
                 if app.home_open {
@@ -76,9 +84,9 @@ impl MusicApp {
                         div()
                             .text_2xl()
                             .font_weight(FontWeight::BOLD)
-                            .child("Ваша музыка"),
+                            .child(tr("Ваша музыка")),
                     )
-                    .child(self.button("home-import", "+ Музыка", true).on_click(
+                    .child(self.button("home-import", tr("+ Музыка"), true).on_click(
                         cx.listener(|app, _, window, cx| app.open_modal(Modal::Import, window, cx)),
                     )),
             )
@@ -86,8 +94,8 @@ impl MusicApp {
             .child(
                 div().flex_shrink_0().flex().gap_3().children(
                     [
-                        ("В этом месяце", self.listening.month_ms),
-                        ("В этом году", self.listening.year_ms),
+                        (tr("В этом месяце"), self.listening.month_ms),
+                        (tr("В этом году"), self.listening.year_ms),
                     ]
                     .into_iter()
                     .map(|(label, ms)| {
@@ -120,10 +128,10 @@ impl MusicApp {
                         div()
                             .text_lg()
                             .font_weight(FontWeight::SEMIBOLD)
-                            .child("Ваши плейлисты"),
+                            .child(tr("Ваши плейлисты")),
                     )
                     .child(
-                        self.button("home-new-playlist", "+ Создать", false)
+                        self.button("home-new-playlist", tr("+ Создать"), false)
                             .on_click(cx.listener(|app, _, window, cx| {
                                 app.open_modal(Modal::CreatePlaylist, window, cx)
                             })),
@@ -164,12 +172,13 @@ impl MusicApp {
                                             .text_ellipsis()
                                             .child(playlist.name.clone()),
                                     )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(rgb(colors.muted))
-                                            .child(format!("Треков: {}", playlist.track_count)),
-                                    )
+                                    .child(div().text_xs().text_color(rgb(colors.muted)).child(
+                                        localized_format!(
+                                            "Треков: {}",
+                                            "Tracks: {}",
+                                            playlist.track_count
+                                        ),
+                                    ))
                                     .child(div().text_xs().text_color(rgb(colors.muted)).child(
                                         format!(
                                             "Длительность: {}",
@@ -199,7 +208,9 @@ impl MusicApp {
                     .rounded_lg()
                     .bg(self.surface(colors.panel))
                     .text_color(rgb(colors.muted))
-                    .child("Создайте плейлист или добавьте его по ссылке с YouTube."),
+                    .child(tr(
+                        "Создайте плейлист или добавьте его по ссылке YouTube или Spotify.",
+                    )),
             )
         } else {
             view.child(cards)
@@ -210,7 +221,7 @@ impl MusicApp {
                 .mt_2()
                 .text_lg()
                 .font_weight(FontWeight::SEMIBOLD)
-                .child("Топ-3 за всё время"),
+                .child(tr("Топ-3 за всё время")),
         );
         if self.listening.top.is_empty() {
             view = view.child(
@@ -218,7 +229,7 @@ impl MusicApp {
                     .flex_shrink_0()
                     .text_sm()
                     .text_color(rgb(colors.muted))
-                    .child("Здесь появятся треки, которые вы слушаете чаще всего."),
+                    .child(tr("Здесь появятся треки, которые вы слушаете чаще всего.")),
             );
         } else {
             for (index, track) in self.listening.top.iter().enumerate() {
@@ -262,7 +273,7 @@ impl MusicApp {
                             div()
                                 .text_xs()
                                 .text_color(rgb(colors.muted))
-                                .child(format!("{} прослуш.", track.plays)),
+                                .child(localized_format!("{} прослуш.", "{} plays", track.plays)),
                         )
                         .on_click(cx.listener(move |app, _, _, cx| {
                             app.settings_open = false;
@@ -280,6 +291,6 @@ impl MusicApp {
                 );
             }
         }
-        view.child(div().flex_shrink_0().text_xs().text_color(rgb(colors.muted)).child("Статистика считается с этой версии по времени воспроизведения. Пауза и перемотка не учитываются.")).into_any_element()
+        view.child(div().flex_shrink_0().text_xs().text_color(rgb(colors.muted)).child(tr("Статистика считается с этой версии по времени воспроизведения. Пауза и перемотка не учитываются."))).into_any_element()
     }
 }

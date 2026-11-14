@@ -34,6 +34,10 @@ struct Tray {
 }
 impl Global for Tray {}
 
+pub(crate) fn refresh_language(cx: &mut App) {
+    taskbar::refresh_language(cx);
+}
+
 pub(crate) fn hwnd(window: &Window) -> Result<HWND> {
     let handle = HasWindowHandle::window_handle(window)
         .map_err(|error| anyhow::anyhow!("Не удалось получить окно Windows: {error}"))?;
@@ -158,7 +162,7 @@ impl Tray {
                 hIcon: icon,
                 ..Default::default()
             };
-            let tip: Vec<_> = "Shard — музыка рядом".encode_utf16().collect();
+            let tip: Vec<_> = "Shard".encode_utf16().collect();
             data.szTip[..tip.len()].copy_from_slice(&tip);
             let state = Box::into_raw(Box::new(State {
                 events,
@@ -212,10 +216,21 @@ unsafe extern "system" fn window_proc(
                     WM_RBUTTONUP | WM_CONTEXTMENU => {
                         let menu = CreatePopupMenu();
                         if !menu.is_null() {
-                            AppendMenuW(menu, MF_STRING, 1, w!("Открыть Shard"));
-                            AppendMenuW(menu, MF_STRING, 2, w!("Скрыть в трей"));
+                            let label = |ru, en| if shard::i18n::is_english() { en } else { ru };
+                            AppendMenuW(
+                                menu,
+                                MF_STRING,
+                                1,
+                                label(w!("Открыть Shard"), w!("Open Shard")),
+                            );
+                            AppendMenuW(
+                                menu,
+                                MF_STRING,
+                                2,
+                                label(w!("Скрыть в трей"), w!("Hide to tray")),
+                            );
                             AppendMenuW(menu, MF_SEPARATOR, 0, ptr::null());
-                            AppendMenuW(menu, MF_STRING, 3, w!("Выйти"));
+                            AppendMenuW(menu, MF_STRING, 3, label(w!("Выйти"), w!("Quit")));
                             let mut point = POINT::default();
                             GetCursorPos(&mut point);
                             SetForegroundWindow(hwnd);

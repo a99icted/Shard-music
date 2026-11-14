@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use crate::{
     db::Database,
     models::{NewTrack, Playlist, Track},
@@ -61,6 +62,18 @@ impl TrackRepository {
             .execute("DELETE FROM tracks WHERE id=?1", [id])?
             > 0)
     }
+
+    pub fn update_metadata(&self, id: i64, title: &str, artist: &str) -> Result<Track> {
+        let conn = self.db.connect()?;
+        if conn.execute(
+            "UPDATE tracks SET title=?2, artist=?3 WHERE id=?1",
+            params![id, title, artist],
+        )? == 0
+        {
+            bail!(tr("Трек не найден"));
+        }
+        self.get(id)
+    }
 }
 
 #[derive(Clone)]
@@ -79,6 +92,17 @@ impl PlaylistRepository {
         Ok(conn.last_insert_rowid())
     }
 
+    pub fn rename(&self, id: i64, name: &str) -> Result<()> {
+        if self.db.connect()?.execute(
+            "UPDATE playlists SET name=?2 WHERE id=?1",
+            params![id, name],
+        )? == 0
+        {
+            bail!(tr("Плейлист не найден"));
+        }
+        Ok(())
+    }
+
     pub fn delete(&self, id: i64) -> Result<Vec<String>> {
         let mut conn = self.db.connect()?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
@@ -89,7 +113,7 @@ impl PlaylistRepository {
                 .collect::<rusqlite::Result<Vec<String>>>()?
         };
         if tx.execute("DELETE FROM playlists WHERE id=?1", [id])? == 0 {
-            bail!("Плейлист не найден");
+            bail!(tr("Плейлист не найден"));
         }
         tx.commit()?;
         Ok(assets)
@@ -140,7 +164,7 @@ impl PlaylistRepository {
             |r| r.get(0),
         )?;
         if !exists {
-            bail!("Плейлист не найден");
+            bail!(tr("Плейлист не найден"));
         }
         let duplicate: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM playlist_tracks WHERE playlist_id=?1 AND track_id=?2)",

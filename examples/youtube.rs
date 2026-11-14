@@ -9,7 +9,7 @@ use std::sync::atomic::AtomicBool;
 fn main() -> Result<()> {
     let root = application_directory()?;
     let argument = std::env::args().nth(1).context(
-        "Usage: cargo run --no-default-features --example youtube -- <YouTube URL | --check-tools>",
+        "Usage: cargo run --no-default-features --example youtube -- <YouTube or Spotify URL | --check-tools>",
     )?;
     if argument == "--check-tools" {
         let tools = DownloadTools::discover(&root)?;
@@ -22,10 +22,9 @@ fn main() -> Result<()> {
     }
     let db = Database::open(root)?;
     let service = TrackService::new(db);
-    let report =
-        service.download_youtube_collection(&argument, &AtomicBool::new(false), |progress| {
-            println!("{}", progress.message())
-        })?;
+    let report = service.download_collection(&argument, &AtomicBool::new(false), |progress| {
+        println!("{}", progress.message())
+    })?;
     for track in &report.tracks {
         println!(
             "Imported #{}: {} — {}\n{}",

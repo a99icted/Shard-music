@@ -641,6 +641,14 @@ impl Focusable for TextInput {
 }
 
 impl TextInput {
+    pub fn set_value(&mut self, value: &str) {
+        self.reset();
+        self.content = value.to_owned().into();
+        self.selected_range = 0..value.len();
+    }
+    pub fn set_placeholder(&mut self, value: &str) {
+        self.placeholder = value.to_owned().into();
+    }
     pub fn new(placeholder: &str, cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle(),

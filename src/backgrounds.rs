@@ -1,4 +1,5 @@
 use crate::db::Database;
+use crate::i18n::tr;
 use anyhow::{Context, Result, ensure};
 use image::{DynamicImage, ImageReader};
 use rusqlite::params;
@@ -38,19 +39,19 @@ impl BackgroundService {
     fn load_image(path: &Path) -> Result<DynamicImage> {
         ensure!(
             fs::metadata(path)?.len() <= 25 * 1024 * 1024,
-            "Выберите изображение до 25 МБ"
+            tr("Выберите изображение до 25 МБ")
         );
         let (w, h) = ImageReader::open(path)?
             .with_guessed_format()?
             .into_dimensions()?;
         ensure!(
             w > 0 && h > 0 && u64::from(w) * u64::from(h) <= 40_000_000,
-            "Изображение должно содержать не больше 40 миллионов пикселей"
+            tr("Изображение должно содержать не больше 40 миллионов пикселей")
         );
         let image = ImageReader::open(path)?
             .with_guessed_format()?
             .decode()
-            .context("Поддерживаются PNG, JPEG и WebP")?;
+            .context(tr("Поддерживаются PNG, JPEG и WebP"))?;
         Ok(if image.width() > 1600 || image.height() > 1600 {
             image.thumbnail(1600, 1600)
         } else {
@@ -80,7 +81,7 @@ impl BackgroundService {
         }
     }
     pub fn set_image(&self, scope: i64, source: &Path) -> Result<()> {
-        ensure!(scope >= 0, "Некорректная область фона");
+        ensure!(scope >= 0, tr("Некорректная область фона"));
         let previous = self.list()?.into_iter().find(|b| b.scope == scope);
         let blur = previous.as_ref().map(|b| b.blur).unwrap_or(12);
         let image = Self::load_image(source)?;
@@ -103,12 +104,12 @@ impl BackgroundService {
         Ok(())
     }
     pub fn set_blur(&self, scope: i64, blur: u8) -> Result<()> {
-        ensure!(blur <= 40, "Размытие должно быть от 0 до 40");
+        ensure!(blur <= 40, tr("Размытие должно быть от 0 до 40"));
         let old = self
             .list()?
             .into_iter()
             .find(|b| b.scope == scope)
-            .context("Сначала выберите фон")?;
+            .context(tr("Сначала выберите фон"))?;
         let image = Self::load_image(&self.db.root().join(&old.original_path))?;
         let conn = self.db.connect()?;
         let display = self.render(&image, blur)?;

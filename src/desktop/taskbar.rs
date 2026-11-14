@@ -44,6 +44,12 @@ struct State {
 struct Taskbar(Box<State>);
 impl Global for Taskbar {}
 
+pub(super) fn refresh_language(cx: &mut App) {
+    if cx.has_global::<Taskbar>() {
+        cx.global::<Taskbar>().0.update_buttons();
+    }
+}
+
 pub(super) fn install(hwnd: HWND, player: Player, cx: &mut App) -> Result<()> {
     let receiver = player.subscribe_transport();
     let initial = receiver
@@ -163,7 +169,11 @@ impl State {
                 },
                 ..Default::default()
             };
-            for (target, source) in button.szTip.iter_mut().zip(tip.encode_utf16()) {
+            for (target, source) in button
+                .szTip
+                .iter_mut()
+                .zip(shard::i18n::tr(tip).encode_utf16())
+            {
                 *target = source;
             }
             button

@@ -26,6 +26,50 @@ fn wav(path: &Path) {
 }
 
 #[test]
+fn metadata_edits_survive_restart_and_preserve_audio_and_membership() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let source = dir.path().join("original.wav");
+    wav(&source);
+    let db = Database::open(&root).unwrap();
+    let tracks = TrackService::new(db.clone());
+    let lists = PlaylistService::new(db.clone());
+    let track = tracks.import_local(&source).unwrap();
+    let playlist = lists.create_playlist("Before").unwrap();
+    lists.add_track(playlist, track.id).unwrap();
+    let bytes = fs::read(tracks.audio_path(&track).unwrap()).unwrap();
+    assert!(tracks.update_metadata(track.id, "  ", "Artist").is_err());
+    assert!(
+        tracks
+            .update_metadata(track.id, &"a".repeat(501), "Artist")
+            .is_err()
+    );
+    assert!(lists.rename_playlist(playlist, " ").is_err());
+    assert!(lists.rename_playlist(playlist, &"a".repeat(101)).is_err());
+    assert!(lists.rename_playlist(-1, "Missing").is_err());
+    assert!(tracks.update_metadata(-1, "Missing", "").is_err());
+    tracks
+        .update_metadata(track.id, "  Новое название 🎵  ", "  New artist  ")
+        .unwrap();
+    lists.rename_playlist(playlist, "  New name  ").unwrap();
+    let reopened = Database::open(&root).unwrap();
+    let actual = PlaylistService::new(reopened.clone())
+        .list_playlist_tracks(playlist)
+        .unwrap();
+    assert_eq!(actual.len(), 1);
+    assert_eq!(actual[0].id, track.id);
+    assert_eq!(actual[0].title, "Новое название 🎵");
+    assert_eq!(actual[0].artist, "New artist");
+    assert_eq!(actual[0].file_path, track.file_path);
+    assert_eq!(actual[0].duration_ms, track.duration_ms);
+    assert_eq!(
+        PlaylistService::new(reopened).list_playlists().unwrap()[0].name,
+        "New name"
+    );
+    assert_eq!(fs::read(tracks.audio_path(&track).unwrap()).unwrap(), bytes);
+}
+
+#[test]
 fn imported_audio_and_playlist_survive_restart_in_insertion_order() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("app");

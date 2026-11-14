@@ -1,3 +1,5 @@
+use crate::i18n::tr;
+use crate::localized_format;
 use crate::youtube::{
     DownloadInfo, YoutubeClient, YoutubeDownloadReport, YoutubeEntry, YoutubeFailure,
     YoutubePlaylist, YoutubeProgress, YoutubeSource, playlist_url,
@@ -31,6 +33,42 @@ pub struct TrackService {
 }
 
 impl TrackService {
+    pub fn download_collection(
+        &self,
+        input: &str,
+        cancel: &AtomicBool,
+        mut progress: impl FnMut(YoutubeProgress),
+    ) -> Result<YoutubeDownloadReport> {
+        let url = validate_music_url(input)?;
+        if url.host_str() != Some("open.spotify.com") {
+            return self.download_youtube_collection(input, cancel, progress);
+        }
+        progress(YoutubeProgress {
+            completed: 0,
+            total: 0,
+            current_title: None,
+        });
+        let collection = match crate::spotify::fetch(&url, cancel) {
+            Err(_) if cancel.load(Ordering::Relaxed) => {
+                return Ok(YoutubeDownloadReport {
+                    cancelled: true,
+                    ..Default::default()
+                });
+            }
+            result => result?,
+        };
+        let source = crate::spotify::SpotifySource {
+            youtube: YoutubeClient::new(self.db.root())?,
+            collection,
+        };
+        self.download_entries(
+            source.entries(),
+            source.collection.is_collection,
+            &source,
+            cancel,
+            progress,
+        )
+    }
     pub fn new(db: Database) -> Self {
         Self {
             repository: TrackRepository::new(db.clone()),
@@ -49,13 +87,24 @@ impl TrackService {
                 .components()
                 .all(|part| matches!(part, Component::Normal(_)))
                 && relative.starts_with("audio"),
-            "Некорректный путь аудиофайла в базе"
+            tr("Некорректный путь аудиофайла в базе")
         );
         Ok(self.db.root().join(relative))
     }
 
     pub fn import_local(&self, path: &Path) -> Result<Track> {
         self.import_file(path, None, None)
+    }
+
+    pub fn update_metadata(&self, id: i64, title: &str, artist: &str) -> Result<Track> {
+        let title = title.trim();
+        let artist = artist.trim();
+        ensure!(!title.is_empty(), tr("Введите название трека"));
+        ensure!(
+            title.chars().count() <= 500 && artist.chars().count() <= 500,
+            tr("Не больше 500 символов в каждом поле")
+        );
+        self.repository.update_metadata(id, title, artist)
     }
 
     pub fn delete_track(&self, id: i64) -> Result<()> {
@@ -69,13 +118,16 @@ impl TrackService {
         let moved = match fs::rename(&original, &pending) {
             Ok(()) => true,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error).context("Не удалось подготовить аудиофайл к удалению"),
+            Err(error) => {
+                return Err(error).context(tr("Не удалось подготовить аудиофайл к удалению"));
+            }
         };
         if let Err(error) = self.repository.delete(id) {
             if moved {
                 fs::rename(&pending, &original).with_context(|| {
-                    format!(
+                    localized_format!(
                         "Не удалось восстановить аудиофайл после ошибки базы: {}",
+                        "Could not restore audio file after database error: {}",
                         pending.display()
                     )
                 })?;
@@ -84,8 +136,9 @@ impl TrackService {
         }
         if moved {
             fs::remove_file(&pending).with_context(|| {
-                format!(
+                localized_format!(
                     "Запись удалена, но не удалось очистить аудиофайл: {}",
+                    "Entry deleted, but could not remove audio file: {}",
                     pending.display()
                 )
             })?;
@@ -101,8 +154,12 @@ impl TrackService {
     ) -> Result<Track> {
         ensure!(
             source.is_file(),
-            "Аудиофайл не найден: {}",
-            source.display()
+            "{}",
+            localized_format!(
+                "Аудиофайл не найден: {}",
+                "Audio file not found: {}",
+                source.display()
+            )
         );
         let extension = source
             .extension()
@@ -111,19 +168,25 @@ impl TrackService {
             .to_lowercase();
         ensure!(
             AUDIO_EXTENSIONS.contains(&extension.as_str()),
-            "Неподдерживаемый формат аудио: {extension}"
+            "{}",
+            localized_format!(
+                "Неподдерживаемый формат аудио: {extension}",
+                "Unsupported audio format: {extension}"
+            )
         );
         // Parse before copying: a failed import must not leave a library entry or an orphan file.
         let tagged = Probe::open(source)?
             .read()
-            .context("Не удалось прочитать аудиофайл")?;
+            .context(tr("Не удалось прочитать аудиофайл"))?;
         let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
         let info = info.unwrap_or_default();
-        let title = tag
-            .and_then(|t| t.title())
-            .map(|s| s.into_owned())
-            .filter(|s| !s.trim().is_empty())
-            .or(info.track)
+        let title = info
+            .track
+            .or_else(|| {
+                tag.and_then(|t| t.title())
+                    .map(|s| s.into_owned())
+                    .filter(|s| !s.trim().is_empty())
+            })
             .or(info.title)
             .unwrap_or_else(|| {
                 source
@@ -132,11 +195,13 @@ impl TrackService {
                     .to_string_lossy()
                     .into_owned()
             });
-        let artist = tag
-            .and_then(|t| t.artist())
-            .map(|s| s.into_owned())
-            .filter(|s| !s.trim().is_empty())
-            .or(info.artist)
+        let artist = info
+            .artist
+            .or_else(|| {
+                tag.and_then(|t| t.artist())
+                    .map(|s| s.into_owned())
+                    .filter(|s| !s.trim().is_empty())
+            })
             .or(info.uploader)
             .unwrap_or_default();
         let duration = tagged.properties().duration().as_millis();
@@ -155,7 +220,7 @@ impl TrackService {
         staged.as_file().sync_all()?;
         staged
             .persist_noclobber(&destination)
-            .context("Не удалось сохранить аудиофайл")?;
+            .context(tr("Не удалось сохранить аудиофайл"))?;
         let result = self.repository.insert(&NewTrack {
             title,
             artist,
@@ -211,21 +276,35 @@ impl TrackService {
             YoutubePlaylist {
                 title: String::new(),
                 entries: vec![YoutubeEntry {
-                    title: "Трек YouTube".into(),
+                    title: tr("Трек YouTube").into(),
                     url: Some(url.clone()),
                 }],
             }
         };
-        report.total = playlist.entries.len();
+        self.download_entries(playlist, playlist_link.is_some(), source, cancel, progress)
+    }
+
+    fn download_entries(
+        &self,
+        playlist: YoutubePlaylist,
+        is_playlist: bool,
+        source: &impl YoutubeSource,
+        cancel: &AtomicBool,
+        mut progress: impl FnMut(YoutubeProgress),
+    ) -> Result<YoutubeDownloadReport> {
+        let mut report = YoutubeDownloadReport {
+            total: playlist.entries.len(),
+            ..Default::default()
+        };
         if cancel.load(Ordering::Relaxed) {
             report.cancelled = true;
             return Ok(report);
         }
         let playlists = PlaylistService::new(self.db.clone());
-        if playlist_link.is_some() {
+        if is_playlist {
             let name: String = playlist.title.trim().chars().take(100).collect();
             report.playlist_id = Some(playlists.create_playlist(if name.is_empty() {
-                "Плейлист YouTube"
+                tr("Плейлист YouTube")
             } else {
                 &name
             })?);
@@ -241,12 +320,12 @@ impl TrackService {
                 current_title: Some(entry.title.clone()),
             });
             let result = (|| -> Result<Track> {
-                let url = entry.url.context(
+                let url = entry.url.context(tr(
                     "YouTube не предоставил ссылку на этот трек (видео удалено или скрыто)",
-                )?;
+                ))?;
                 let staging = tempfile::tempdir_in(self.db.root().join("staging"))?;
                 let audio = source.track(&url, staging.path(), cancel)?;
-                ensure!(!cancel.load(Ordering::Relaxed), "Загрузка остановлена");
+                ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
                 self.import_file(&audio.path, Some(url.to_string()), Some(audio.info))
             })();
             match result {
@@ -282,15 +361,30 @@ impl TrackService {
     }
 }
 
+pub fn validate_music_url(input: &str) -> Result<url::Url> {
+    if url::Url::parse(input.trim())
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_owned))
+        .as_deref()
+        == Some("open.spotify.com")
+    {
+        crate::spotify::validate_spotify_url(input)
+    } else {
+        validate_youtube_url(input).context(tr(
+            "Вставьте ссылку YouTube или Spotify на трек или открытый плейлист",
+        ))
+    }
+}
+
 pub fn validate_youtube_url(input: &str) -> Result<url::Url> {
     let url = url::Url::parse(input.trim())
-        .context("Вставьте полную ссылку YouTube, начиная с https://")?;
+        .context(tr("Вставьте полную ссылку YouTube, начиная с https://"))?;
     ensure!(
         url.scheme() == "https"
             && url.username().is_empty()
             && url.password().is_none()
             && url.port().is_none(),
-        "Нужна HTTPS-ссылка YouTube"
+        tr("Нужна HTTPS-ссылка YouTube")
     );
     ensure!(
         matches!(
@@ -303,11 +397,11 @@ pub fn validate_youtube_url(input: &str) -> Result<url::Url> {
                     | "youtu.be"
             )
         ),
-        "Поддерживаются ссылки youtube.com и youtu.be"
+        tr("Поддерживаются ссылки youtube.com и youtu.be")
     );
     ensure!(
         url.path() != "/" && !url.path().is_empty(),
-        "Укажите ссылку на трек, видео или плейлист"
+        tr("Укажите ссылку на трек, видео или плейлист")
     );
     Ok(url)
 }
@@ -319,6 +413,15 @@ pub struct PlaylistService {
 }
 
 impl PlaylistService {
+    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<()> {
+        let name = name.trim();
+        ensure!(!name.is_empty(), tr("Введите название плейлиста"));
+        ensure!(
+            name.chars().count() <= 100,
+            tr("Название должно содержать не больше 100 символов")
+        );
+        self.repository.rename(id, name)
+    }
     pub fn new(db: Database) -> Self {
         Self {
             repository: PlaylistRepository::new(db.clone()),
@@ -327,10 +430,10 @@ impl PlaylistService {
     }
     pub fn create_playlist(&self, name: &str) -> Result<i64> {
         let name = name.trim();
-        ensure!(!name.is_empty(), "Введите название плейлиста");
+        ensure!(!name.is_empty(), tr("Введите название плейлиста"));
         ensure!(
             name.chars().count() <= 100,
-            "Название должно содержать не больше 100 символов"
+            tr("Название должно содержать не больше 100 символов")
         );
         self.repository.create(name)
     }
@@ -374,7 +477,7 @@ pub fn application_directory() -> Result<PathBuf> {
     }
     directories::ProjectDirs::from("", "Shard", "Shard")
         .map(|dirs| dirs.data_local_dir().to_path_buf())
-        .context("Не удалось определить папку данных приложения")
+        .context(tr("Не удалось определить папку данных приложения"))
 }
 
 #[cfg(test)]

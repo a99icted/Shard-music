@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use crate::{db::Database, repositories::PlaylistRepository};
 use anyhow::{Context, Result, ensure};
 use image::{ImageReader, imageops::FilterType};
@@ -23,7 +24,7 @@ impl AppearanceService {
             .into_iter()
             .find(|p| p.id == id)
             .map(|p| p.cover_path)
-            .context("Плейлист не найден")
+            .context(tr("Плейлист не найден"))
     }
 
     fn clean_old_cover(&self, path: Option<String>) {
@@ -40,19 +41,21 @@ impl AppearanceService {
         let old = self.previous_cover(id)?;
         ensure!(
             fs::metadata(source)?.len() <= 25 * 1024 * 1024,
-            "Выберите изображение до 25 МБ"
+            tr("Выберите изображение до 25 МБ")
         );
         let (width, height) = ImageReader::open(source)?
             .with_guessed_format()?
             .into_dimensions()?;
         ensure!(
             width > 0 && height > 0 && u64::from(width) * u64::from(height) <= 40_000_000,
-            "Изображение должно содержать не больше 40 миллионов пикселей"
+            tr("Изображение должно содержать не больше 40 миллионов пикселей")
         );
         let decoded = ImageReader::open(source)?
             .with_guessed_format()?
             .decode()
-            .context("Не удалось открыть изображение. Поддерживаются PNG, JPEG и WebP")?;
+            .context(tr(
+                "Не удалось открыть изображение. Поддерживаются PNG, JPEG и WebP",
+            ))?;
         let image = decoded.resize_to_fill(640, 640, FilterType::Lanczos3);
         let color = dominant_header_color(&image.thumbnail(64, 64).to_rgba8());
         fs::create_dir_all(self.db.root().join("artwork"))?;
@@ -79,7 +82,7 @@ impl AppearanceService {
     pub fn set_header_color(&self, id: i64, color: Option<u32>) -> Result<()> {
         ensure!(
             color.is_none_or(|c| c <= 0xffffff),
-            "Цвет должен быть в формате #RRGGBB"
+            tr("Цвет должен быть в формате #RRGGBB")
         );
         self.repository.set_header_color(id, color)
     }
@@ -89,7 +92,7 @@ pub fn parse_color(value: &str) -> Result<u32> {
     let value = value.trim().trim_start_matches('#');
     ensure!(
         value.len() == 6 && value.bytes().all(|c| c.is_ascii_hexdigit()),
-        "Введите цвет в формате #RRGGBB, например #34465E"
+        tr("Введите цвет в формате #RRGGBB, например #34465E")
     );
     Ok(u32::from_str_radix(value, 16)?)
 }

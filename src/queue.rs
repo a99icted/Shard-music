@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -21,9 +22,9 @@ impl RepeatMode {
     }
     pub fn label(self) -> &'static str {
         match self {
-            Self::Off => "Повтор выключен",
-            Self::All => "Повтор всей очереди",
-            Self::One => "Повтор одного трека",
+            Self::Off => tr("Повтор выключен"),
+            Self::All => tr("Повтор всей очереди"),
+            Self::One => tr("Повтор одного трека"),
         }
     }
 }

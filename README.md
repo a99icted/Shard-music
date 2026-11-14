@@ -1,69 +1,73 @@
-# Shard
+English | [Русский](README.ru.md)
 
-Локальный музыкальный плеер для Windows на Rust и GPUI. Поддерживает библиотеку, плейлисты с обложками, очередь, перемешивание, регулировку громкости и четыре темы.
+<p align="center">
+  <img src="assets/shard.svg" width="128" height="128" alt="Shard logo">
+</p>
 
-## Запуск
+<h1 align="center">Shard</h1>
+<p align="center">Your music. On your device.</p>
 
-Готовая сборка для Windows 10 (2004 и новее) и Windows 11 x64 — один установщик `Shard-0.1.1-Setup-x64.exe` в разделе **Releases** репозитория. Он содержит плеер, yt-dlp, FFmpeg, ffprobe, Node.js и библиотеки Visual C++. Отдельно устанавливать Rust или Node.js не нужно. Установка выполняется без прав администратора; приложение появляется в меню «Пуск». Удаление приложения сохраняет музыку и настройки пользователя.
+**Shard is a lightweight music player for Windows, written in Rust.** Listen to local music, organize playlists, and download tracks from YouTube or import them through Spotify links. A native GPUI interface keeps the player lean, without a browser engine or gigabytes of RAM overhead.
 
-Для запуска из исходников понадобятся:
+## Features
 
-- [Rust stable](https://rustup.rs/) с Cargo (MSVC toolchain).
-- [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) с компонентами **Desktop development with C++** и **Windows SDK**.
-- Для загрузки с YouTube — актуальный [Node.js LTS](https://nodejs.org/) или [Deno](https://deno.com/).
+- **Your local library:** import audio files, manage the queue, shuffle, repeat, and edit track titles and artists.
+- **YouTube downloads:** save a track or an entire playlist as MP3.
+- **Spotify links:** import tracks, albums, and public playlists. Shard reads public metadata, finds matching audio on YouTube, and preserves track names, artists, and order. No Spotify account or API key required.
+- **Personal playlists:** edit names, choose covers and backgrounds, adjust blur, and pick a header color with compact sliders or HEX. Shuffle starts playback immediately.
+- **Make it yours:** four themes and a Russian / English interface, switchable without restarting.
+- **Everyday playback:** system tray, Windows taskbar controls, listening statistics, and a library that survives restarts.
 
-Скачайте или клонируйте репозиторий, откройте PowerShell в его папке и выполните:
+Spotify supplies metadata; the audio is downloaded from YouTube. Availability depends on public Spotify data and accessible YouTube videos. Failed tracks appear in the import report; completed downloads stay in your library. Download only content you have permission to save.
 
-```powershell
-cargo run --locked
-```
+## Install
 
-Перед повторной сборкой закройте запущенный Shard через **«Выйти» в системном трее**. Крестик скрывает окно; работающий `shard.exe` не позволяет Cargo заменить файл при пересборке.
+Download **`Shard-0.1.2-Setup-x64.exe`** from [Releases](https://github.com/a99icted/Shard-music/releases).
 
-Для загрузки с YouTube сначала установите компоненты:
+**Windows 10 (2004 or later) / Windows 11, x64.** The installer includes the player, yt-dlp, FFmpeg, ffprobe, Node.js, and the Visual C++ runtime. No separate Rust or Node.js installation is needed. Installation requires no administrator rights; uninstalling preserves your music and settings.
+
+## Quick start
+
+1. Click **Add music** to select local files or paste a YouTube / Spotify link.
+2. Open a playlist and press **Listen** or **Shuffle** to start playback.
+3. Use the **pencil** in the playlist header to edit its name and appearance. An empty name keeps the previous one. The **⋯** menu contains track selection and playlist deletion.
+4. Open **Settings → Customization / Language** to change the theme, background, or interface language.
+
+The window close button hides Shard in the tray and keeps music playing. Choose **Exit** from the tray menu to quit. Launching Shard again brings the existing window forward.
+
+Music and settings are stored in `%LOCALAPPDATA%\Shard\Shard\data`. Removing a playlist leaves its tracks in your library.
+
+## Build from source
+
+Requires [Rust stable](https://rustup.rs/) with the MSVC toolchain and [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++** and **Windows SDK**. For downloads, install [Node.js LTS](https://nodejs.org/) or [Deno](https://deno.com/).
 
 ```powershell
 .\scripts\setup-youtube.ps1
 cargo run --locked
 ```
 
-Скрипт скачивает `yt-dlp`, `ffmpeg` и `ffprobe` в папку `tools` и проверяет их SHA-256. Node.js/Deno запускается загрузчиком только при необходимости; после завершения или отмены загрузки все его дочерние процессы завершаются. Локальный импорт и воспроизведение работают без этих компонентов. Каталог `vendor/gpui` содержит исправление GPUI и нужен для сборки.
-
-## Как работает
-
-Нажмите **«Добавить музыку»** и выберите локальные аудиофайлы или вставьте ссылку на YouTube:
-
-- **Ссылка на видео** скачивает один трек и добавляет его в библиотеку.
-- **Ссылка на плейлист** скачивает все доступные треки, создаёт одноимённый плейлист Shard и сохраняет порядок. Ссылка на видео с параметром `list` также загружает весь плейлист. Недоступные видео пропускаются с сообщением об ошибке.
-
-Аудио с YouTube конвертируется в MP3. Загрузку можно свернуть в компактную карточку слева внизу или остановить; уже добавленные треки сохранятся. Загружайте контент, на скачивание которого у вас есть разрешение.
-
-Аудиофайлы копируются в папку приложения, метаданные и плейлисты хранятся в SQLite. Библиотека сохраняется после перезапуска. По умолчанию данные находятся в `%LOCALAPPDATA%\Shard\Shard\data`. При обновлении автоматически используется прежняя папка библиотеки, без повторного импорта.
-
-Плейлист удаляется кнопкой **«Удалить»** в его шапке или правой кнопкой по нему в боковой панели. После подтверждения удаляется список с его оформлением; аудио остаётся в библиотеке и других плейлистах.
-
-Повторный запуск открывает окно уже работающего Shard, включая свёрнутое в трей. Второй плеер и дополнительный значок в трее не создаются.
-
-Крестик окна скрывает Shard в системный трей и сохраняет воспроизведение. Нажатие на значок возвращает окно; в меню правой кнопки есть команды **«Открыть Shard»**, **«Скрыть в трей»** и **«Выйти»** для полного завершения приложения.
-
-Наведите мышь на значок открытого Shard на панели задач Windows: под миниатюрой окна доступны **предыдущий трек**, **пауза / продолжить** и **следующий трек**. Кнопки работают и при свёрнутом окне; пока трек не выбран, они неактивны.
-
-Нажатие на логотип открывает главную страницу с карточками плейлистов, их общей длительностью, временем прослушивания за текущий месяц и год и топ-3 за всё время. Статистика ведётся с момента установки этой версии: пауза и перемотка не добавляют время. Для топа прослушивание засчитывается после 10 секунд или половины короткого трека. Кнопка **↻** в плеере переключает повтор: выключен → вся очередь → один трек. При запуске плейлиста повтор всей очереди зацикливает этот плейлист.
-
-Темы и фон приложения выбираются во вкладке **«Настройки»** внизу боковой панели. Собственный фон плейлиста и его размытие настраиваются через **«Оформление»**. Шапка уходит вверх вместе со списком; круглая кнопка **↑** возвращает к началу.
-
-## Сборка установщика
-
-Чтобы собрать установщик из исходников на Windows, выполните:
+The setup script downloads yt-dlp, FFmpeg, and ffprobe into `tools` and verifies their SHA-256 checksums. Local playback works without these tools. Keep `vendor/gpui` in the checkout: it contains the GPUI fixes used by Shard. Quit the development build through its tray menu before rebuilding.
 
 ```powershell
+cargo test --locked --all-targets
 .\scripts\package-windows.ps1
 ```
 
-Скрипт соберёт релиз, подготовит компоненты и создаст установщик в `dist`. При первом запуске он загрузит проверенные по SHA-256 Node.js и компилятор Inno Setup. Для библиотеки Visual C++ нужен компонент MSVC Redistributable в Build Tools; другой каталог можно указать параметром `-RuntimeDirectory`. Параметр `-SkipBuild` использует уже собранный `target\release\shard.exe`.
+The packaging script builds the release and writes the installer, SHA-256 checksum, and payload manifest to `dist`. On first use, it downloads verified Node.js and Inno Setup packages. The MSVC redistributable CRT must be available in Visual Studio Build Tools; use `-RuntimeDirectory` to specify its directory. `-SkipBuild` reuses `target/release/shard.exe`.
 
-Исходники и `Cargo.lock` хранятся в Git вместе с `vendor/gpui`. Готовый установщик и файл `.sha256` публикуются отдельно в GitHub Releases; `target`, `tools`, `.local-data`, `dist` и личная библиотека исключены через `.gitignore`.
+Build output, downloaded tools, caches, and personal libraries are excluded from Git. See [CHANGELOG.md](CHANGELOG.md) for release history.
 
-## Лицензия
+## Support Shard
 
-[MIT](LICENSE): можно использовать, форкать, изменять и распространять код с сохранением лицензии. Лицензии включённого стороннего кода указаны в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+If you'd like to support Shard's development, you can donate to one of these wallets:
+
+| Coin / network | Wallet address |
+| --- | --- |
+| TON (GRAM) | `UQDhOStCTVs8CYld6vAJi_wEbaAdzudKKmodxW68oy7R1K81` |
+| ETH (ETH) | `0xa0206Dc84e56b49480319CdC6A6A9c983747d4BC` |
+| BTC (BTC) | `bc1qzlnzamh2krcsdfgjwfnmz8xst65vzuxyawjcc8` |
+| SOL (SOL) | `6oFWiDemRLD5NsvfFr1fdEWAjYQJmuhDKUnWEfdnqAjs` |
+
+## License
+
+[MIT](LICENSE). Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use anyhow::{Result, bail};
 use std::{
     env,
@@ -57,14 +58,14 @@ impl DownloadTools {
 
     fn from_directories(directories: &[PathBuf]) -> Result<Self> {
         let Some(yt_dlp) = find_executable("yt-dlp", directories) else {
-            bail!(
+            bail!(tr(
                 "Не найден компонент загрузки yt-dlp. Запустите scripts/setup-youtube.ps1 из папки Shard или положите yt-dlp рядом с приложением в папку tools"
-            );
+            ));
         };
         let Some(ffmpeg) = find_executable("ffmpeg", directories) else {
-            bail!(
+            bail!(tr(
                 "Не найден компонент обработки аудио FFmpeg. Запустите scripts/setup-youtube.ps1 из папки Shard или положите FFmpeg в папку tools"
-            );
+            ));
         };
         let javascript = directories.iter().find_map(|directory| {
             ["deno", "node"].into_iter().find_map(|name| {

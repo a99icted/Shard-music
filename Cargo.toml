@@ -1,6 +1,6 @@
 [package]
 name = "shard"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Local music library and playlists built with Rust and GPUI"
 license = "MIT AND Apache-2.0"
@@ -20,6 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
 url = "2"
+ureq = "3"
 uuid = { version = "1", features = ["v4"] }
 gpui = { version = "0.2.2", optional = true }
 rfd = { version = "0.15", optional = true }

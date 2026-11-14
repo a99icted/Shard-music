@@ -9,7 +9,7 @@ The following included or adapted code retains its original license.
 - Copyright 2022 - 2025 Zed Industries, Inc.
 - License: Apache License 2.0, preserved in `vendor/gpui/LICENSE-APACHE`.
 - Included sources: `vendor/gpui/`.
-- Local modifications are described in `vendor/gpui/LOZEX-PATCH.md`.
+- Local modifications are described in `vendor/gpui/SHARD-PATCH.md`.
 
 `src/input.rs` adapts text editing code from GPUI 0.2.2
 `examples/input.rs`. It has been modified for Shard, including application

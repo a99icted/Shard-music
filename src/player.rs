@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
 use rodio::{Decoder, OutputStream, Sink, Source};
+use shard::i18n::tr;
+use shard::localized_format;
 use shard::{
     db::Database,
     queue::{PlaybackQueue, RepeatMode},
@@ -110,8 +112,10 @@ impl StatisticsWriter {
                             at,
                         } => {
                             if let Err(error) = service.record(&session, track, ms, at) {
-                                state.lock().unwrap().error =
-                                    Some(format!("Не удалось сохранить статистику: {error:#}"));
+                                state.lock().unwrap().error = Some(localized_format!(
+                                    "Не удалось сохранить статистику: {error:#}",
+                                    "Could not save statistics: {error:#}"
+                                ));
                             }
                         }
                         StatisticsCommand::Flush(reply) => {
@@ -163,7 +167,10 @@ impl Engine {
                 at: self.pending_at,
             })
         {
-            self.error = Some(format!("Не удалось сохранить статистику: {error:#}"));
+            self.error = Some(localized_format!(
+                "Не удалось сохранить статистику: {error:#}",
+                "Could not save statistics: {error:#}"
+            ));
         }
         self.pending_ms = 0;
     }
@@ -175,14 +182,18 @@ impl Engine {
         while let Some(id) = self.queue.current() {
             let result = (|| -> Result<Sink> {
                 if self.output.is_none() {
-                    self.output =
-                        Some(OutputStream::try_default().context("Аудиоустройство недоступно")?);
+                    self.output = Some(
+                        OutputStream::try_default().context(tr("Аудиоустройство недоступно"))?,
+                    );
                 }
-                let path = self.tracks.get(&id).context("Трек отсутствует в очереди")?;
+                let path = self
+                    .tracks
+                    .get(&id)
+                    .context(tr("Трек отсутствует в очереди"))?;
                 let source = Decoder::new(BufReader::new(
-                    File::open(path).context("Аудиофайл не найден")?,
+                    File::open(path).context(tr("Аудиофайл не найден"))?,
                 ))
-                .context("Не удалось декодировать аудио")?;
+                .context(tr("Не удалось декодировать аудио"))?;
                 self.duration_ms = source.total_duration().map(|d| d.as_millis() as u64);
                 let sink = Sink::try_new(&self.output.as_ref().unwrap().1)?;
                 sink.set_volume(amplitude(self.volume));
@@ -320,7 +331,10 @@ impl Player {
                             && sink.get_pos() > Duration::from_secs(3)
                         {
                             if let Err(error) = sink.try_seek(Duration::ZERO) {
-                                engine.error = Some(format!("Не удалось перемотать трек: {error}"));
+                                engine.error = Some(localized_format!(
+                                    "Не удалось перемотать трек: {error}",
+                                    "Could not seek track: {error}"
+                                ));
                             }
                             engine
                                 .meter
@@ -345,7 +359,10 @@ impl Player {
                     Ok(Command::Seek(position)) => {
                         if let Some(sink) = &engine.sink {
                             if let Err(error) = sink.try_seek(position) {
-                                engine.error = Some(format!("Не удалось перемотать трек: {error}"));
+                                engine.error = Some(localized_format!(
+                                    "Не удалось перемотать трек: {error}",
+                                    "Could not seek track: {error}"
+                                ));
                             }
                             engine
                                 .meter
@@ -477,10 +494,10 @@ impl Player {
         let (sender, receiver) = mpsc::channel();
         self.sender
             .send(Command::Remove(id, Some(sender)))
-            .context("Аудиоплеер недоступен")?;
+            .context(tr("Аудиоплеер недоступен"))?;
         receiver
             .recv_timeout(Duration::from_secs(5))
-            .context("Аудиоплеер не ответил на удаление трека")?;
+            .context(tr("Аудиоплеер не ответил на удаление трека"))?;
         Ok(())
     }
     pub fn state(&self) -> PlaybackState {

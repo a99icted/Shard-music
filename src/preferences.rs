@@ -1,3 +1,4 @@
+use crate::localized_format;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
@@ -36,8 +37,10 @@ impl PreferencesWriter {
                                 }
                             }
                             if let Err(error) = preferences.save(&root) {
-                                *failures.lock().unwrap() =
-                                    Some(format!("Не удалось сохранить настройки: {error:#}"));
+                                *failures.lock().unwrap() = Some(localized_format!(
+                                    "Не удалось сохранить настройки: {error:#}",
+                                    "Could not save settings: {error:#}"
+                                ));
                             }
                         }
                         WriteCommand::Flush(reply) => {
@@ -66,6 +69,7 @@ impl PreferencesWriter {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Preferences {
+    pub language: crate::i18n::Language,
     pub volume: f32,
     pub shuffle: bool,
     pub queue_visible: bool,
@@ -76,6 +80,7 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            language: crate::i18n::Language::Russian,
             volume: 0.7,
             shuffle: false,
             queue_visible: true,
@@ -128,6 +133,7 @@ mod tests {
     fn preferences_survive_restart_and_handle_invalid_files() {
         let root = tempfile::tempdir().unwrap();
         let preferences = Preferences {
+            language: crate::i18n::Language::English,
             volume: 0.32,
             shuffle: true,
             queue_visible: false,
@@ -138,6 +144,7 @@ mod tests {
         preferences.save(root.path()).unwrap();
         let reopened = Preferences::load(root.path());
         assert_eq!(reopened.volume, 0.32);
+        assert_eq!(reopened.language, crate::i18n::Language::English);
         assert!(reopened.shuffle);
         assert!(!reopened.queue_visible);
         assert_eq!(reopened.theme, crate::theme::Theme::Onyx);

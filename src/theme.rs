@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,10 +38,10 @@ impl Theme {
     }
     pub fn name(self) -> &'static str {
         match self {
-            Self::Forest => "Лес",
-            Self::Onyx => "Оникс",
-            Self::PickMe => "Пикми",
-            Self::Cosmic => "Космос",
+            Self::Forest => tr("Лес"),
+            Self::Onyx => tr("Оникс"),
+            Self::PickMe => tr("Пикми"),
+            Self::Cosmic => tr("Космос"),
         }
     }
     pub fn palette(self) -> Palette {

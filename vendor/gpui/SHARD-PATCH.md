@@ -1,4 +1,4 @@
-# Lozex GPUI patch
+# Shard GPUI patch
 
 Source: crates.io `gpui` 0.2.2, licensed under Apache-2.0 (see
 `LICENSE-APACHE`). Cargo selects this copy through `[patch.crates-io]`.
@@ -18,5 +18,5 @@ at narrow, wide and narrow widths again, and compares it with fresh layouts.
 It covers Cyrillic, ASCII, emoji, CJK and multiline text. The unpatched
 0.2.2 fails this check on Windows with a UTF-8 boundary panic.
 
-Keep this directory when sharing/building Lozex. Remove the Cargo patch only
+Keep this directory when sharing/building Shard. Remove the Cargo patch only
 after an upstream version passes the regression and playback UI checks.
