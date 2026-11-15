@@ -5,10 +5,8 @@ import android.content.pm.ServiceInfo
 import androidx.work.*
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
-import com.yausername.ffmpeg.FFmpeg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -29,11 +27,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         var directory: File? = null
         try {
             setForeground(getForegroundInfo())
+            val english = Core.snapshot().preferences.optString("language") == "english"
+            setProgress(workDataOf("message" to if (english) "Updating downloader…" else "Обновляем загрузчик…"))
+            if (inputData.getBoolean("update_only", false)) {
+                val version = DownloaderRuntime.prepare(applicationContext, force = true)
+                return@withContext finish(if (english) "Downloader updated: $version" else "Загрузчик обновлён: $version", "", true)
+            }
+            DownloaderRuntime.prepare(applicationContext)
             val url = inputData.getString("url") ?: error("Missing URL")
             val metadata = Core.call("metadata", "url" to url) as JSONObject // strict desktop URL validation
             coroutineContext.ensureActive()
-            YoutubeDL.init(applicationContext)
-            FFmpeg.init(applicationContext)
             directory = File(Core.root, "staging/download-${UUID.randomUUID()}").apply { mkdirs() }
             var playlistId: Long? = null
             val entries: List<JSONObject>
@@ -43,7 +46,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     addOption("--flat-playlist"); addOption("--dump-single-json"); addOption("--skip-download")
                     addOption("--socket-timeout", "20"); addOption("--retries", "2")
                 }
-                val info = JSONObject(runInterruptible { YoutubeDL.execute(request, processId, null) }.out)
+                val info = JSONObject(DownloaderRuntime.execute(applicationContext, request, processId).out)
                 if (info.has("entries")) {
                     playlistId = (Core.call("playlist_create", "name" to info.optString("title", "YouTube").take(100).ifBlank { "YouTube" }) as Number).toLong()
                     entries = info.getJSONArray("entries").objects().map { entry ->
@@ -74,7 +77,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                         addOption("--concurrent-fragments", "1")
                         addOption("-o", File(attempt, "audio.%(ext)s").absolutePath)
                     }
-                    runInterruptible { YoutubeDL.execute(request, processId, null) }
+                    DownloaderRuntime.execute(applicationContext, request, processId)
                     coroutineContext.ensureActive()
                     val audio = attempt.listFiles()?.firstOrNull { it.extension.lowercase() in setOf("m4a", "mp3", "opus", "ogg", "flac", "wav", "aac", "mp4") }
                         ?: error("No completed audio file")
@@ -91,15 +94,26 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     errors += "$label: ${e.message}"
                 }
             }
-            val report = "Added / Добавлено: $added. Errors / Ошибок: ${errors.size}\n${errors.joinToString("\n")}".take(7000)
-            Result.success(workDataOf("message" to report))
+            val report = if (english) "Added: $added of ${entries.size}. Errors: ${errors.size}." else "Добавлено: $added из ${entries.size}. Ошибок: ${errors.size}."
+            val message = report + if (errors.isNotEmpty()) "\n" + DownloadFailure.summary(errors.first(), english) else ""
+            finish(message, errors.joinToString("\n\n"), added > 0 || errors.isEmpty())
         } catch (e: Exception) {
             coroutineContext.ensureActive()
-            Result.failure(workDataOf("message" to (e.message ?: "Download failed").take(7000)))
+            val raw = e.message ?: "Download failed"
+            val english = runCatching { Core.snapshot().preferences.optString("language") == "english" }.getOrDefault(false)
+            finish(DownloadFailure.summary(raw, english), raw, false)
         } finally {
             YoutubeDL.destroyProcessById(processId)
             directory?.deleteRecursively()
         }
+    }
+
+    private fun finish(message: String, raw: String, success: Boolean): Result {
+        val details = utf8Excerpt(raw)
+        applicationContext.getSharedPreferences("downloader", Context.MODE_PRIVATE).edit()
+            .putString("report", message).putString("details", details).apply()
+        val data = workDataOf("message" to message, "details" to details)
+        return if (success) Result.success(data) else Result.failure(data)
     }
 
     private suspend fun findMatch(entry: JSONObject): String {
@@ -108,7 +122,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             addOption("--flat-playlist"); addOption("--dump-single-json"); addOption("--skip-download")
             addOption("--socket-timeout", "20"); addOption("--retries", "2")
         }
-        val data = runInterruptible { YoutubeDL.execute(request, processId, null) }.out
+        val data = DownloaderRuntime.execute(applicationContext, request, processId).out
         val candidates = Core.call("match", "data" to data, "title" to entry.getString("title"),
             "artist" to entry.getString("artist"), "duration_ms" to entry.optLong("duration_ms")) as JSONArray
         return candidates.getString(0)
@@ -116,6 +130,11 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
     companion object {
         const val CHAIN = "shard-downloads"
+        fun update(context: Context) {
+            val request = OneTimeWorkRequestBuilder<DownloadWorker>().setInputData(workDataOf("update_only" to true))
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
+            WorkManager.getInstance(context).enqueueUniqueWork(CHAIN, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        }
         fun enqueue(context: Context, url: String, wifiOnly: Boolean, chargingOnly: Boolean) {
             val request = OneTimeWorkRequestBuilder<DownloadWorker>().setInputData(workDataOf("url" to url))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
@@ -123,4 +142,19 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             WorkManager.getInstance(context).enqueueUniqueWork(CHAIN, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
         }
     }
+}
+
+// WorkManager Data has a 10 KiB UTF-8 limit, including keys and serialized overhead.
+// A character count is unsafe for long Russian playlist error reports.
+internal fun utf8Excerpt(raw: String): String {
+    val out = StringBuilder()
+    var bytes = 0
+    val iterator = raw.codePoints().iterator()
+    while (iterator.hasNext()) {
+        val point = iterator.nextInt()
+        val size = when { point <= 0x7f -> 1; point <= 0x7ff -> 2; point <= 0xffff -> 3; else -> 4 }
+        if (bytes + size > 6000) { out.append("\n…"); break }
+        out.appendCodePoint(point); bytes += size
+    }
+    return out.toString()
 }

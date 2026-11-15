@@ -1,6 +1,7 @@
 package music.shard.mobile
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.core.app.ActivityScenario
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -35,6 +36,8 @@ class NativeBridgeTest {
         var future: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
         var controller: MediaController? = null
         val playing = CountDownLatch(1)
+        // API 35 requires a foreground app to acquire initial audio focus, as with a user tap.
+        val activity = ActivityScenario.launch(MainActivity::class.java)
         try {
             instrumentation.runOnMainSync {
                 future = MediaController.Builder(Core.context, SessionToken(Core.context, ComponentName(Core.context, PlaybackService::class.java))).buildAsync()
@@ -60,6 +63,7 @@ class NativeBridgeTest {
             }
         } finally {
             instrumentation.runOnMainSync { controller?.release() }
+            activity.close()
             Core.call("track_delete", "id" to track.id)
             wave.delete()
         }

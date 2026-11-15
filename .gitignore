@@ -65,6 +65,7 @@ vendor/**/.cargo-ok
 
 # Android build products, local SDK paths and signing keys
 **/.gradle/
+**/.kotlin/
 **/build/
 **/local.properties
 /mobile/android/app/src/main/jniLibs/

@@ -23,6 +23,9 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     var controller by mutableStateOf<MediaController?>(null)
     var playerRevision by mutableIntStateOf(0); private set
     var downloadMessage by mutableStateOf(""); private set
+    var downloadDetails by mutableStateOf(""); private set
+    var downloadActive by mutableStateOf(false); private set
+    var downloaderVersion by mutableStateOf(""); private set
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) { playerRevision++ }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) { message = error.localizedMessage }
@@ -30,13 +33,21 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     init {
         refresh()
         viewModelScope.launch {
+            var finishedCount = -1
             WorkManager.getInstance(app).getWorkInfosForUniqueWorkFlow(DownloadWorker.CHAIN).collectLatest { jobs ->
-                val active = jobs.lastOrNull { !it.state.isFinished }
-                val finished = jobs.lastOrNull { it.state.isFinished }
+                val active = jobs.firstOrNull { it.state == androidx.work.WorkInfo.State.RUNNING }
+                    ?: jobs.firstOrNull { !it.state.isFinished }
+                val preferences = app.getSharedPreferences("downloader", android.content.Context.MODE_PRIVATE)
+                downloadActive = active != null
+                downloadDetails = if (active != null) "" else preferences.getString("details", "").orEmpty()
+                downloaderVersion = preferences.getString("version", "").orEmpty()
                 downloadMessage = active?.progress?.getString("message")
-                    ?: if (active != null) "Waiting for network / charging · Ожидание сети / зарядки"
-                    else finished?.outputData?.getString("message").orEmpty()
-                if (finished != null) refresh()
+                    ?: if (active != null) {
+                        if (library?.preferences?.optString("language") == "english") "Waiting for network / charging" else "Ожидание сети / зарядки"
+                    }
+                    else preferences.getString("report", "").orEmpty()
+                val count = jobs.count { it.state.isFinished }
+                if (count != finishedCount) { finishedCount = count; refresh() }
             }
         }
     }
