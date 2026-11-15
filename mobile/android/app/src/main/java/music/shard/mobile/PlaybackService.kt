@@ -18,6 +18,9 @@ import androidx.media3.session.CommandButton
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionError
+import androidx.media3.session.MediaNotification
+import androidx.core.app.NotificationCompat
+import com.google.common.collect.ImmutableList
 import androidx.media3.session.DefaultMediaNotificationProvider
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -62,7 +65,6 @@ class PlaybackService : MediaSessionService() {
     private var favorites = emptySet<Long>()
     private var english = false
     private var preferencesLoaded = false
-    private lateinit var playbackNotification: PlaybackNotification
     private var trackId: Long? = null
     private var sessionId = UUID.randomUUID().toString()
     private var startedAt: Long? = null
@@ -83,8 +85,18 @@ class PlaybackService : MediaSessionService() {
                     .onFailure { android.util.Log.e("Shard", "Cannot save playback mode", it) }
             }
         }
-        playbackNotification = PlaybackNotification(this, { it in favorites }, { english })
-        setMediaNotificationProvider(playbackNotification)
+        setMediaNotificationProvider(object : DefaultMediaNotificationProvider(this) {
+            override fun addNotificationActions(session: MediaSession, buttons: ImmutableList<CommandButton>, builder: NotificationCompat.Builder, actionFactory: MediaNotification.ActionFactory): IntArray {
+                super.addNotificationActions(session, buttons, builder, actionFactory)
+                // Android 8-12 uses the notification's compact layout, independently of
+                // Android 13+'s system media slots. Keep heart, play/pause and next visible.
+                return listOf(
+                    buttons.indexOfFirst { it.sessionCommand?.customAction == PlaybackActions.FAVORITE },
+                    buttons.indexOfFirst { it.playerCommand == Player.COMMAND_PLAY_PAUSE },
+                    buttons.indexOfFirst { it.playerCommand == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM }
+                ).filter { it >= 0 }.toIntArray()
+            }
+        })
         player = ExoPlayer.Builder(this).setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true
         ).setHandleAudioBecomingNoisy(true).setWakeMode(C.WAKE_MODE_LOCAL).build()
@@ -129,6 +141,13 @@ class PlaybackService : MediaSessionService() {
                         PlaybackActions.commands.forEach { add(it) }
                     }.build()
                     val result = MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands)
+                    // Android 13+ has five media slots. Free the previous-track slot so all
+                    // three explicit controls fit alongside play/pause and next. App/headset
+                    // controllers keep the full transport commands.
+                    if (session.isMediaNotificationController(controller) || controller.packageName == "com.android.systemui") {
+                        result.setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                            .remove(Player.COMMAND_SEEK_TO_PREVIOUS).remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM).build())
+                    }
                     return result.build()
                 }
                 override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, command: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
@@ -224,7 +243,6 @@ class PlaybackService : MediaSessionService() {
         measure(); flush()
         handler.removeCallbacksAndMessages(null)
         controls.cancel()
-        playbackNotification.close()
         preferenceWrites.close()
         session?.release(); player.release()
         super.onDestroy()

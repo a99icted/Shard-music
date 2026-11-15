@@ -5,10 +5,9 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.media.session.MediaController as SystemMediaController
 import android.media.session.MediaSession as SystemMediaSession
+import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
-import android.view.View
-import android.widget.FrameLayout
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -101,38 +100,20 @@ class PlaybackControlsTest {
                 system?.playbackState?.customActions?.size == 3
             }
             assertEquals(PlaybackActions.commands.map { it.customAction }, system!!.playbackState!!.customActions.map { it.action })
-            fun notification() = notifications.activeNotifications.first { it.id == 1001 }.notification
-            fun expanded(): View {
-                var view: View? = null
-                instrumentation.runOnMainSync {
-                    view = notification().bigContentView.apply(Core.context, FrameLayout(Core.context))
-                }
-                return view!!
-            }
-            fun tap(viewId: Int) {
-                val panel = expanded()
-                instrumentation.runOnMainSync { assertTrue(panel.findViewById<View>(viewId).performClick()) }
-            }
-            val panel = expanded()
-            listOf(R.id.player_shuffle, R.id.player_previous, R.id.player_play, R.id.player_next, R.id.player_repeat, R.id.player_favorite).forEach {
-                assertEquals(View.VISIBLE, panel.findViewById<View>(it).visibility)
-            }
-            // Exercise the actual notification PendingIntents, including transport controls.
-            tap(R.id.player_play)
+            fun notification() = notifications.activeNotifications.first { it.notification.extras.containsKey(Notification.EXTRA_MEDIA_SESSION) }.notification
+            assertEquals("android.app.Notification\$MediaStyle", notification().extras.getString(Notification.EXTRA_TEMPLATE))
+            system!!.transportControls.pause()
             await { var paused = false; instrumentation.runOnMainSync { paused = !controller!!.playWhenReady }; paused }
-            await { expanded().findViewById<View>(R.id.player_play).contentDescription == "Продолжить" }
-            tap(R.id.player_play)
+            system!!.transportControls.play()
             await { var playing = false; instrumentation.runOnMainSync { playing = controller!!.isPlaying }; playing }
-            tap(R.id.player_next)
+            system!!.transportControls.skipToNext()
             await { var index = 0; instrumentation.runOnMainSync { index = controller!!.currentMediaItemIndex }; index == 1 }
-            tap(R.id.player_previous)
-            await { var index = 1; instrumentation.runOnMainSync { index = controller!!.currentMediaItemIndex }; index == 0 }
-            tap(R.id.player_favorite)
+            system!!.transportControls.sendCustomAction(PlaybackActions.FAVORITE, Bundle.EMPTY)
             await { runBlocking { track.id !in Core.snapshot().favorites } }
             compose.waitUntil(15000) { compose.onAllNodesWithContentDescription("В избранное").fetchSemanticsNodes().isNotEmpty() }
-            tap(R.id.player_shuffle)
+            system!!.transportControls.sendCustomAction(PlaybackActions.SHUFFLE, Bundle.EMPTY)
             await { runBlocking { Core.snapshot().preferences.optBoolean("shuffle") } }
-            tap(R.id.player_repeat)
+            system!!.transportControls.sendCustomAction(PlaybackActions.REPEAT, Bundle.EMPTY)
             await { runBlocking { Core.snapshot().preferences.optString("repeat") == "all" } }
 
             compose.onNodeWithText(track.title, substring = true).performClick()
@@ -159,7 +140,6 @@ class PlaybackControlsTest {
             await { runBlocking { !Core.snapshot().preferences.optBoolean("shuffle") } }
             // Platform labels follow app changes too.
             await { system!!.playbackState?.customActions?.lastOrNull()?.name.toString() == "Повтор: выкл." }
-            await { expanded().findViewById<View>(R.id.player_repeat).contentDescription == "Повтор: выкл." }
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             compose.waitUntil(15000) { compose.onAllNodesWithContentDescription("Закрыть плеер").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Закрыть плеер").performClick()
