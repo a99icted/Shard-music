@@ -36,6 +36,11 @@ object Core {
     lateinit var context: Application
     val root: File get() = File(context.filesDir, "shard")
     private val initMutex = Mutex()
+    // Serialize short local JNI calls. Concurrent SQLite connection open/close
+    // from UI refreshes, notification actions and statistics can deadlock in the
+    // Android native library. Network/sync operations must remain independent:
+    // their cancellation and duplicate decisions require concurrent commands.
+    private val libraryMutex = Mutex()
     private val favoriteMutex = Mutex()
     private val changes = MutableStateFlow(0L)
     val libraryChanges = changes.asStateFlow()
@@ -48,9 +53,12 @@ object Core {
     }
     suspend fun call(op: String, vararg args: Pair<String, Any?>): Any? = withContext(Dispatchers.IO) {
         initialize()
-        val result = decode(NativeBridge.dispatch(JSONObject().put("op", op).apply {
+        val request = JSONObject().put("op", op).apply {
             args.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
-        }.toString()))
+        }.toString()
+        fun execute() = decode(NativeBridge.dispatch(request))
+        val result = if (op.startsWith("sync_") || op in setOf("metadata", "metadata_cancel", "match")) execute()
+            else libraryMutex.withLock { execute() }
         if (op == "favorite" || op == "preferences") changes.update { it + 1 }
         result
     }

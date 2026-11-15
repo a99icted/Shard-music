@@ -31,7 +31,6 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) { message = error.localizedMessage }
     }
     init {
-        refresh()
         viewModelScope.launch { Core.libraryChanges.collectLatest { refresh() } }
         viewModelScope.launch {
             var finishedCount = -1

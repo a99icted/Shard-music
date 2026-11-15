@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -22,6 +23,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -74,6 +83,13 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
         val sync by SyncService.state.collectAsStateWithLifecycle()
         val syncError by SyncService.error.collectAsStateWithLifecycle()
         val shared by SharedLink.url.collectAsStateWithLifecycle()
+        val playerRequested by PlayerNavigation.requested.collectAsStateWithLifecycle()
+        LaunchedEffect(playerRequested, model.controller) {
+            if (playerRequested && model.controller != null) {
+                showPlayer = model.controller?.currentMediaItem != null
+                PlayerNavigation.requested.value = false
+            }
+        }
         LaunchedEffect(shared) { if (shared != null) addMusic = true }
         LaunchedEffect(sync.optLong("revision")) { if (sync.optLong("revision") > 0) model.refresh() }
         LaunchedEffect(syncError) { syncError?.let { model.message = it; SyncService.error.value = null } }
@@ -108,7 +124,7 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
                             Icon(Icons.Default.ChevronRight, t("Открыть загрузки", "Open downloads"))
                         }
                     }
-                    MiniPlayer(model, t) { showPlayer = true }
+                    MiniPlayer(model, t, !showPlayer, onNotify) { showPlayer = true }
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                         listOf(Icons.Default.LibraryMusic to t("Библиотека", "Library"), Icons.Default.Settings to t("Настройки", "Settings")).forEachIndexed { index, pair ->
                             NavigationBarItem(selected = tab == index, onClick = { tab = index; playlist = null; query = ""; if (index == 1) model.refresh() },
@@ -144,8 +160,8 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
                             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true,
                                 placeholder = { Text(t("Название или исполнитель", "Title or artist")) }, leadingIcon = { Icon(Icons.Default.Search, null) })
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Button(onClick = { visible.firstOrNull()?.let { model.play(visible, it.id, false) } }, enabled = visible.isNotEmpty(), modifier = Modifier.weight(1f)) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(t("Слушать", "Play")) }
-                                FilledTonalButton(onClick = { visible.randomOrNull()?.let { model.play(visible, it.id, true) } }, enabled = visible.isNotEmpty()) { Icon(Icons.Default.Shuffle, t("Перемешать", "Shuffle")) }
+                                Button(onClick = { visible.firstOrNull()?.let { onNotify(); model.play(visible, it.id, false) } }, enabled = visible.isNotEmpty(), modifier = Modifier.weight(1f)) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(t("Слушать", "Play")) }
+                                FilledTonalButton(onClick = { visible.randomOrNull()?.let { onNotify(); model.play(visible, it.id, true) } }, enabled = visible.isNotEmpty()) { Icon(Icons.Default.Shuffle, t("Перемешать", "Shuffle")) }
                                 OutlinedIconButton(onClick = { onNotify(); SyncService.start(context, if (scope == null) "library" else "playlist", scope ?: 0) }) { Icon(Icons.Default.Sync, t("Отправить на устройство", "Send to device")) }
                             }
                             Text("${visible.size} ${t("треков", "tracks")}", Modifier.padding(start = 20.dp, bottom = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -160,7 +176,7 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
                             LazyColumn(Modifier.weight(1f)) {
                                 items(visible, key = { it.id }) { track ->
                                     TrackRow(track, track.id in snapshot.favorites, t,
-                                        onPlay = { model.play(visible, track.id) },
+                                        onPlay = { onNotify(); model.play(visible, track.id) },
                                         onFavorite = { model.toggleFavorite(track.id) },
                                         onQueue = { model.controller?.addMediaItem(track.mediaItem()) },
                                         onEdit = { editTrack = track }, onAdd = { choosePlaylist = track },
@@ -200,7 +216,7 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
             confirmButton = { Button(onClick = { pair.second(); confirm = null }) { Text(t("Удалить", "Delete")) } },
             dismissButton = { OutlinedButton(onClick = { confirm = null }) { Text(t("Отмена", "Cancel")) } }) }
         model.message?.let { message -> AlertDialog(onDismissRequest = { model.message = null }, title = { Text("Shard") }, text = { LazyColumn { item { Text(message) } } }, confirmButton = { Button(onClick = { model.message = null }) { Text("OK") } }) }
-        if (showPlayer) PlayerSheet(model, t) { showPlayer = false }
+        if (showPlayer) PlayerSheet(model, t, onNotify) { showPlayer = false }
         val duplicates = sync.optJSONArray("duplicates")
         var duplicateCopies by remember(duplicates?.toString()) { mutableStateOf(emptySet<Int>()) }
         if (duplicates != null && duplicates.length() > 0) AlertDialog(onDismissRequest = { SyncService.stop(context) },
@@ -245,73 +261,140 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
     }
 }
 
-@Composable private fun MiniPlayer(model: LibraryModel, t: (String, String) -> String, open: () -> Unit) {
+// Sample only while this UI is visible and music is playing. Player events also
+// refresh the position immediately after seeking, pausing or changing tracks.
+@Composable private fun playbackPosition(player: Player, revision: Int, active: Boolean = true): Long {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var position by remember(player) { mutableLongStateOf(player.currentPosition) }
+    LaunchedEffect(player, revision, lifecycle, active) {
+        if (active) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            do {
+                position = player.currentPosition
+                if (!player.isPlaying) break
+                delay(1000)
+            } while (true)
+        }
+    }
+    return position
+}
+
+@Composable private fun MiniPlayer(model: LibraryModel, t: (String, String) -> String, active: Boolean, notify: () -> Unit, open: () -> Unit) {
     val revision = model.playerRevision
     val player = model.controller ?: return
     val media = player.currentMediaItem ?: return
-    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clickable(onClick = open)) {
-        Row(Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.MusicNote, null, Modifier.padding(end = 12.dp).size(28.dp), tint = MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f)) { Text(media.mediaMetadata.title?.toString().orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis); Text(media.mediaMetadata.artist?.toString().orEmpty(), style = MaterialTheme.typography.bodySmall, maxLines = 1) }
-            val currentId = media.mediaId.toLongOrNull()
-            val favorite = currentId in model.library?.favorites.orEmpty()
-            IconToggleButton(checked = favorite, onCheckedChange = { currentId?.let { model.toggleFavorite(it) } }, enabled = currentId != null) {
-                Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    if (favorite) t("Убрать из избранного", "Unlike track") else t("В избранное", "Like track"),
-                    tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+    val position = playbackPosition(player, revision, active)
+    val fraction = if (player.duration > 0) (position.toFloat() / player.duration).coerceIn(0f, 1f) else 0f
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Box {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { if (player.isPlaying) player.pause() else { notify(); player.play() } }) {
+                    Icon(if (player.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (player.isPlaying) t("Приостановить", "Pause") else t("Продолжить", "Resume"),
+                        Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                Text(buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(media.mediaMetadata.title?.toString().orEmpty()) }
+                    media.mediaMetadata.artist?.toString()?.takeIf { it.isNotBlank() }?.let { artist ->
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) { append(" — $artist") }
+                    }
+                }, Modifier.weight(1f).clickable(onClickLabel = t("Открыть плеер", "Open player"), onClick = open).padding(vertical = 12.dp),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                val currentId = media.mediaId.toLongOrNull()
+                val favorite = currentId in model.library?.favorites.orEmpty()
+                IconToggleButton(checked = favorite, onCheckedChange = { currentId?.let { model.toggleFavorite(it) } }, enabled = currentId != null) {
+                    Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        if (favorite) t("Убрать из избранного", "Unlike track") else t("В избранное", "Like track"),
+                        tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = { player.stop(); player.clearMediaItems() }) {
+                    Icon(Icons.Default.Close, t("Закрыть плеер", "Close player"), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) { Icon(if (player.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, t("Пауза / играть", "Pause / play")) }
-            IconButton(onClick = { player.seekToNextMediaItem() }) { Icon(Icons.Default.SkipNext, t("Следующий", "Next")) }
+            Box(Modifier.fillMaxWidth().height(2.dp).align(Alignment.BottomCenter)
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))) {
+                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+            }
         }
     }
 }
 
-@Composable private fun PlayerSheet(model: LibraryModel, t: (String, String) -> String, dismiss: () -> Unit) {
+@Composable private fun PlayerSheet(model: LibraryModel, t: (String, String) -> String, notify: () -> Unit, dismiss: () -> Unit) {
     val revision = model.playerRevision
     val player = model.controller ?: return
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var position by remember { mutableLongStateOf(player.currentPosition) }
+    val sampledPosition = playbackPosition(player, revision)
+    var seekPosition by remember(player.currentMediaItem?.mediaId) { mutableLongStateOf(player.currentPosition) }
     var dragging by remember { mutableStateOf(false) }
     var queue by remember { mutableStateOf(false) }
-    LaunchedEffect(player, lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (true) { if (!dragging) position = player.currentPosition; delay(1000) }
-        }
-    }
-    ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    var menu by remember { mutableStateOf(false) }
+    if (player.currentMediaItem == null) { LaunchedEffect(Unit) { dismiss() }; return }
+    val position = if (dragging) seekPosition else sampledPosition
+    val repeat = player.repeatMode
+    val repeatLabel = when (repeat) { Player.REPEAT_MODE_ALL -> t("Повтор: все", "Repeat all"); Player.REPEAT_MODE_ONE -> t("Повтор: один", "Repeat one"); else -> t("Без повтора", "Repeat off") }
+    ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        dragHandle = { Box(Modifier.padding(top = 10.dp, bottom = 18.dp).size(width = 32.dp, height = 3.dp)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape)) }) {
         SheetSystemBars()
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).navigationBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.MusicNote, null, Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(player.mediaMetadata.title?.toString().orEmpty(), style = MaterialTheme.typography.headlineSmall, maxLines = 2)
-            Text(player.mediaMetadata.artist?.toString().orEmpty(), style = MaterialTheme.typography.bodyLarge)
-            val duration = player.duration.coerceAtLeast(1)
-            Slider(position.toFloat().coerceIn(0f, duration.toFloat()), { dragging = true; position = it.toLong() },
-                valueRange = 0f..duration.toFloat(), onValueChangeFinished = { player.seekTo(position); dragging = false })
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(time(position)); Text(time(player.duration.coerceAtLeast(0))) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (player.currentPosition > 3000) player.seekTo(0) else player.seekToPreviousMediaItem() }) { Icon(Icons.Default.SkipPrevious, t("Предыдущий", "Previous"), Modifier.size(32.dp)) }
-                FilledIconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }, Modifier.size(64.dp)) { Icon(if (player.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, t("Пауза / играть", "Pause / play"), Modifier.size(36.dp)) }
-                IconButton(onClick = { player.seekToNextMediaItem() }) { Icon(Icons.Default.SkipNext, t("Следующий", "Next"), Modifier.size(32.dp)) }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(player.mediaMetadata.title?.toString().orEmpty(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(player.mediaMetadata.artist?.toString().orEmpty(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Box(Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.MusicNote, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                }
             }
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val shuffled = player.shuffleModeEnabled
-                FilterChip(shuffled, { player.shuffleModeEnabled = !shuffled },
-                    label = { Text(t("Вперемешку", "Shuffle")) },
-                    leadingIcon = { Icon(Icons.Default.Shuffle, null, Modifier.size(18.dp)) })
-                val repeat = player.repeatMode
-                FilterChip(repeat != Player.REPEAT_MODE_OFF, { player.repeatMode = nextRepeatMode(repeat) },
-                    label = { Text(when (repeat) { Player.REPEAT_MODE_ALL -> t("Повтор: все", "Repeat all"); Player.REPEAT_MODE_ONE -> t("Повтор: один", "Repeat one"); else -> t("Без повтора", "Repeat off") }) },
-                    leadingIcon = { Icon(if (repeat == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, null, Modifier.size(18.dp)) })
+            val duration = player.duration.coerceAtLeast(1)
+            Slider(position.toFloat().coerceIn(0f, duration.toFloat()), { dragging = true; seekPosition = it.toLong() },
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = t("Позиция воспроизведения", "Playback position") },
+                valueRange = 0f..duration.toFloat(), enabled = player.duration > 0 && player.isCurrentMediaItemSeekable,
+                thumb = { Box(Modifier.size(16.dp).background(MaterialTheme.colorScheme.primary, CircleShape)) },
+                track = { state -> SliderDefaults.Track(state, Modifier.height(4.dp), thumbTrackGapSize = 0.dp, drawStopIndicator = null) },
+                onValueChangeFinished = { player.seekTo(seekPosition); dragging = false })
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(time(position), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(time(player.duration.coerceAtLeast(0)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { player.repeatMode = nextRepeatMode(repeat) }) {
+                    Icon(if (repeat == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, repeatLabel,
+                        Modifier.size(26.dp), tint = if (repeat == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = { if (player.currentPosition > 3000) player.seekTo(0) else player.seekToPreviousMediaItem() }) { Icon(Icons.Default.SkipPrevious, t("Предыдущий", "Previous"), Modifier.size(32.dp)) }
+                IconButton(onClick = { if (player.isPlaying) player.pause() else { notify(); player.play() } }, Modifier.size(64.dp)) {
+                    Icon(if (player.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (player.isPlaying) t("Приостановить", "Pause") else t("Продолжить", "Resume"), Modifier.size(48.dp))
+                }
+                IconButton(onClick = { player.seekToNextMediaItem() }) { Icon(Icons.Default.SkipNext, t("Следующий", "Next"), Modifier.size(32.dp)) }
+                Box {
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, t("Настройки воспроизведения", "Playback options")) }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text(if (player.shuffleModeEnabled) t("Перемешивание: вкл.", "Shuffle: on") else t("Перемешивание: выкл.", "Shuffle: off")) },
+                            leadingIcon = { Icon(Icons.Default.Shuffle, null) },
+                            trailingIcon = { if (player.shuffleModeEnabled) Icon(Icons.Default.Check, null) },
+                            onClick = { player.shuffleModeEnabled = !player.shuffleModeEnabled; menu = false })
+                        DropdownMenuItem(text = { Text(t("Очередь", "Queue")) }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, null) },
+                            onClick = { queue = !queue; menu = false })
+                    }
+                }
+            }
+            Text(repeatLabel + if (player.shuffleModeEnabled) t(" · Вперемешку", " · Shuffle") else "",
+                Modifier.fillMaxWidth().padding(bottom = 12.dp), style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             val currentId = player.currentMediaItem?.mediaId?.toLongOrNull()
             val favorite = currentId in model.library?.favorites.orEmpty()
-            FilledTonalButton(onClick = { currentId?.let { model.toggleFavorite(it) } }, enabled = currentId != null, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { currentId?.let { model.toggleFavorite(it) } }, enabled = currentId != null,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(28.dp)) {
                 Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null)
-                Spacer(Modifier.width(8.dp)); Text(if (favorite) t("В избранном", "Liked") else t("В избранное", "Like track"))
+                Spacer(Modifier.width(8.dp)); Text(if (favorite) t("В избранном", "Liked") else t("Добавить в избранное", "Add to favorites"))
             }
-            OutlinedButton(onClick = { queue = !queue }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, null); Text(t("Очередь", "Queue")) }
+            Spacer(Modifier.height(8.dp))
             if (queue) LazyColumn(Modifier.heightIn(max = 240.dp)) {
                 items(player.mediaItemCount, key = { it }) { index ->
                     val item = player.getMediaItemAt(index)

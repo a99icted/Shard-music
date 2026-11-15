@@ -1,0 +1,24 @@
+<!-- Accessible labels are assigned by PlaybackNotification for the current language and state. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" tools:ignore="ContentDescription" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/notification_player_background">
+    <ImageView android:layout_width="112dp" android:layout_height="112dp" android:layout_gravity="end|center_vertical" android:layout_marginEnd="12dp" android:alpha="0.07" android:src="@drawable/ic_player_music" android:importantForAccessibility="no" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp">
+        <TextView android:id="@+id/player_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#F1F2F4" android:textSize="18sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/player_artist" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#A9ABB4" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center_vertical">
+<ImageButton android:id="@+id/player_shuffle" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:padding="6dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_player_shuffle" android:scaleType="fitCenter" />
+<ImageButton android:id="@+id/player_previous" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:padding="6dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_player_previous" android:scaleType="fitCenter" />
+<ImageButton android:id="@+id/player_play" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:padding="3dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_player_play" android:scaleType="fitCenter" />
+<ImageButton android:id="@+id/player_next" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:padding="6dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_player_next" android:scaleType="fitCenter" />
+<ImageButton android:id="@+id/player_repeat" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:padding="6dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_player_repeat" android:scaleType="fitCenter" />
+<ImageButton android:id="@+id/player_favorite" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:padding="6dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_player_heart" android:scaleType="fitCenter" />
+        </LinearLayout>
+        <ProgressBar android:id="@+id/player_progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="8dp" android:progressDrawable="@drawable/notification_player_progress" android:indeterminate="false" android:max="1000" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+            <FrameLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content">
+                <TextView android:id="@+id/player_elapsed" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#A9ABB4" android:textSize="12sp" />
+                <Chronometer android:id="@+id/player_clock" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#A9ABB4" android:textSize="12sp" />
+            </FrameLayout>
+            <TextView android:id="@+id/player_duration" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#A9ABB4" android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
