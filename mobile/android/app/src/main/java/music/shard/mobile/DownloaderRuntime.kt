@@ -6,6 +6,8 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.youtubedl_android.YoutubeDLResponse
 import com.yausername.ffmpeg.FFmpeg
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,7 +68,7 @@ object DownloaderRuntime {
             // Android may reclaim this cache; it contains no music library files.
             request.addOption("--cache-dir", File(context.cacheDir, "yt-dlp").absolutePath)
             try {
-                runInterruptible { YoutubeDL.execute(request, processId, null) }
+                withTransientDownloadRetry { runInterruptible { YoutubeDL.execute(request, processId, null) } }
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 if (!DownloadFailure.needsExtractorRefresh(error.message.orEmpty())) throw error
@@ -84,18 +86,38 @@ object DownloaderRuntime {
                     throw error
                 }
                 if (version(context) == before) throw error
-                runInterruptible { YoutubeDL.execute(request, processId, null) }
+                withTransientDownloadRetry { runInterruptible { YoutubeDL.execute(request, processId, null) } }
             }
         }
     }
 }
 
+// yt-dlp's media retries do not cover every EJS/player-script failure. Retry the
+// extraction once for a transport failure, even if a later line reports HTTP 403.
+// A plain 403 is not a transient network error and does not enter this path.
+internal suspend fun <T> withTransientDownloadRetry(block: suspend () -> T): T {
+    return try {
+        block()
+    } catch (error: Exception) {
+        if (error is CancellationException || !DownloadFailure.isTransientNetworkFailure(error.message.orEmpty())) throw error
+        delay(1_000)
+        block()
+    }
+}
+
 internal object DownloadFailure {
+    fun isTransientNetworkFailure(raw: String): Boolean = listOf(
+        "timed out", "TimeoutError", "UNEXPECTED_EOF_WHILE_READING",
+        "Connection reset", "RemoteDisconnected", "Temporary failure in name resolution"
+    ).any { raw.contains(it, ignoreCase = true) }
+
     fun needsExtractorRefresh(raw: String): Boolean = raw.contains("403") || raw.contains("signature", true) || raw.contains("nsig", true) || raw.contains("SABR", true)
 
     fun summary(raw: String, english: Boolean): String {
         fun t(ru: String, en: String) = if (english) en else ru
         return when {
+            isTransientNetworkFailure(raw) -> t("Соединение с сервисом оборвалось или истекло время ожидания. Попробуйте другую сеть и запустите загрузку снова.",
+                "The connection to the service was interrupted or timed out. Try another network and start the download again.")
             raw.contains("403") -> t("YouTube отклонил загрузку (403). Обновите загрузчик во вкладке «Загрузки» и попробуйте снова. Если он уже обновлён, проверьте доступность записи и сеть.",
                 "YouTube rejected the download (403). Update the downloader in Downloads and try again. If it is current, check the recording's availability and your network.")
             raw.contains("Sign in", true) || raw.contains("age-restricted", true) || raw.contains("Private video", true) -> t("Для этой записи YouTube требует вход или ограничивает доступ. Попробуйте открытую запись.", "YouTube requires sign-in or restricts this recording. Try a public recording.")

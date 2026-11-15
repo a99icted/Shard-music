@@ -28,6 +28,7 @@ class NavigationTest {
                 compose.onNodeWithText("Слушать").assertIsDisplayed()
                 compose.onNodeWithText("Настройки").performClick()
                 compose.onNodeWithText("Цветовая тема").assertIsDisplayed()
+                compose.onNodeWithText("Плеер").assertDoesNotExist()
                 compose.onNodeWithText("Загрузки").performScrollTo().performClick()
                 compose.onNodeWithText("Сеть и батарея").assertIsDisplayed()
                 compose.onNodeWithText("Цветовая тема").assertDoesNotExist()

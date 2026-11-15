@@ -32,6 +32,7 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     }
     init {
         refresh()
+        viewModelScope.launch { Core.libraryChanges.collectLatest { refresh() } }
         viewModelScope.launch {
             var finishedCount = -1
             WorkManager.getInstance(app).getWorkInfosForUniqueWorkFlow(DownloadWorker.CHAIN).collectLatest { jobs ->
@@ -68,6 +69,7 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     fun refresh() = perform(false) { library = Core.snapshot() }
     fun command(op: String, vararg args: Pair<String, Any?>) = perform { Core.call(op, *args) }
     fun preferences(vararg args: Pair<String, Any?>) = command("preferences", "patch" to JSONObject().apply { args.forEach { put(it.first, it.second) } })
+    fun toggleFavorite(id: Long) = perform(false) { Core.toggleFavorite(id) }
     fun importFiles(uris: List<Uri>, playlist: Long? = null) = perform {
         val errors = mutableListOf<String>()
         var count = 0
@@ -90,7 +92,7 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     fun play(tracks: List<Track>, selected: Long, shuffle: Boolean? = null) {
         val player = controller ?: return
         if (tracks.isEmpty()) return
-        shuffle?.let { player.shuffleModeEnabled = it; preferences("shuffle" to it) }
+        shuffle?.let { player.shuffleModeEnabled = it }
         player.setMediaItems(tracks.map { it.mediaItem() }, tracks.indexOfFirst { it.id == selected }.coerceAtLeast(0), 0)
         player.prepare(); player.play()
     }

@@ -10,6 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -33,6 +36,9 @@ object Core {
     lateinit var context: Application
     val root: File get() = File(context.filesDir, "shard")
     private val initMutex = Mutex()
+    private val favoriteMutex = Mutex()
+    private val changes = MutableStateFlow(0L)
+    val libraryChanges = changes.asStateFlow()
     @Volatile private var ready = false
     private suspend fun initialize() = initMutex.withLock {
         if (!ready) {
@@ -42,9 +48,14 @@ object Core {
     }
     suspend fun call(op: String, vararg args: Pair<String, Any?>): Any? = withContext(Dispatchers.IO) {
         initialize()
-        decode(NativeBridge.dispatch(JSONObject().put("op", op).apply {
+        val result = decode(NativeBridge.dispatch(JSONObject().put("op", op).apply {
             args.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
         }.toString()))
+        if (op == "favorite" || op == "preferences") changes.update { it + 1 }
+        result
+    }
+    suspend fun toggleFavorite(id: Long) = favoriteMutex.withLock {
+        call("favorite", "id" to id, "enabled" to (id !in snapshot().favorites))
     }
     private fun decode(response: String): Any? {
         val json = JSONObject(response)

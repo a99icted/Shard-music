@@ -4,7 +4,6 @@ package music.shard.mobile
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,22 +19,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.media3.common.Player
 import androidx.work.WorkManager
 import org.json.JSONObject
 
 @Composable internal fun SettingsScreen(model: LibraryModel, snapshot: Snapshot, sync: JSONObject, t: (String, String) -> String, notify: () -> Unit, selected: Int, select: (Int) -> Unit, image: (Long) -> Unit) {
-    val titles = listOf(t("Оформление", "Appearance"), t("Плеер", "Playback"), t("Загрузки", "Downloads"), t("Синхронизация", "Sync"), t("Статистика", "Statistics"), t("О приложении", "About"))
+    val titles = listOf(t("Оформление", "Appearance"), t("Загрузки", "Downloads"), t("Синхронизация", "Sync"), t("Статистика", "Statistics"), t("О приложении", "About"))
+    val active = selected.coerceIn(titles.indices)
     Column {
-        ScrollableTabRow(selectedTabIndex = selected, edgePadding = 16.dp, containerColor = Color.Transparent, divider = {}) {
-            titles.forEachIndexed { index, title -> Tab(selected == index, { select(index); if (index == 4) model.refresh() }, text = { Text(title, fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal) }) }
+        ScrollableTabRow(selectedTabIndex = active, edgePadding = 16.dp, containerColor = Color.Transparent, divider = {}) {
+            titles.forEachIndexed { index, title -> Tab(active == index, { select(index); if (index == 3) model.refresh() }, text = { Text(title, fontWeight = if (active == index) FontWeight.Bold else FontWeight.Normal) }) }
         }
-        when (selected) {
+        when (active) {
             0 -> AppearanceSettings(snapshot, model, t, image)
-            1 -> PlaybackSettings(snapshot, model, t)
-            2 -> DownloadSettings(model, t, notify)
-            3 -> SyncSettings(snapshot, model, sync, t, notify)
-            4 -> StatisticsScreen(snapshot, t)
+            1 -> DownloadSettings(model, t, notify)
+            2 -> SyncSettings(snapshot, model, sync, t, notify)
+            3 -> StatisticsScreen(snapshot, t)
             else -> LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item { SettingsCard("Shard", t("Ваша музыка. На вашем устройстве.", "Your music. On your device."), Icons.Default.Headphones) {
                     Text("${t("Версия", "Version")} ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleMedium)
@@ -100,31 +98,6 @@ import org.json.JSONObject
                 Slider(blur, { blur = it }, valueRange = 0f..40f, onValueChangeFinished = { model.command("background_blur", "id" to 0, "blur" to blur.toInt()) })
                 OutlinedButton(onClick = { model.command("background_remove", "id" to 0) }, Modifier.fillMaxWidth()) { Text(t("Убрать изображение", "Remove image")) }
             }
-        } }
-    }
-}
-
-@Composable private fun PlaybackSettings(snapshot: Snapshot, model: LibraryModel, t: (String, String) -> String) {
-    val player = model.controller
-    val revision = model.playerRevision
-    var volume by remember { mutableFloatStateOf(player?.volume ?: snapshot.preferences.optDouble("volume", 0.7).toFloat()) }
-    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { SettingsCard(t("Воспроизведение", "Playback"), icon = Icons.Default.Headphones) {
-            Text(t("Громкость плеера", "Player volume"))
-            Slider(volume, { volume = it; player?.volume = it }, onValueChangeFinished = { model.preferences("volume" to volume) })
-            SettingsToggle(t("Перемешивание", "Shuffle"), checked = player?.shuffleModeEnabled ?: snapshot.preferences.optBoolean("shuffle")) {
-                player?.shuffleModeEnabled = it; model.preferences("shuffle" to it)
-            }
-            Text(t("Повтор", "Repeat"), style = MaterialTheme.typography.labelLarge)
-            val repeat = player?.repeatMode ?: when (snapshot.preferences.optString("repeat")) { "all" -> Player.REPEAT_MODE_ALL; "one" -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
-            listOf(Triple("off", Player.REPEAT_MODE_OFF, t("Выключен", "Off")), Triple("all", Player.REPEAT_MODE_ALL, t("Вся очередь", "Entire queue")), Triple("one", Player.REPEAT_MODE_ONE, t("Один трек", "One track"))).forEach { (id, mode, label) ->
-                OutlinedButton(onClick = { player?.repeatMode = mode; model.preferences("repeat" to id) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(containerColor = if (repeat == mode) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)) {
-                    if (repeat == mode) { Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }; Text(label)
-                }
-            }
-        } }
-        item { SettingsCard(t("В фоне и с гарнитурой", "Background & headphones"), icon = Icons.Default.BluetoothAudio) {
-            Text(t("Управляйте музыкой на экране блокировки и с гарнитуры. При отключении наушников музыка ставится на паузу.", "Control music from the lock screen and your headphones. Unplugging headphones pauses playback."), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } }
     }
 }
