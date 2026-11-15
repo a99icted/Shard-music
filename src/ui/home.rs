@@ -31,16 +31,21 @@ impl MusicApp {
             let result = task.await;
             let _ = this.update(cx, |app, cx| {
                 app.statistics_loading = false;
+                let changed;
                 match result {
-                    Ok(summary) => app.listening = summary,
+                    Ok(summary) => {
+                        changed = app.listening != summary;
+                        app.listening = summary;
+                    }
                     Err(error) => {
+                        changed = true;
                         app.error = Some(localized_format!(
                             "Не удалось прочитать статистику: {error:#}",
                             "Could not read statistics: {error:#}"
                         ))
                     }
                 }
-                if app.home_open {
+                if changed && app.home_open {
                     cx.notify();
                 }
             });
@@ -52,7 +57,8 @@ impl MusicApp {
         let colors = self.colors();
         let dense = viewport.width < px(1100.) || viewport.height < px(700.);
         let available = f32::from(viewport.width)
-            - if dense { 208. } else { 288. }
+            - self.sidebar_width(dense)
+            - if dense { 32. } else { 64. }
             - if self.preferences.queue_visible && viewport.width >= px(1280.) {
                 288.
             } else {

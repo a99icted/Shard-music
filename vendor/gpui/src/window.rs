@@ -1673,11 +1673,20 @@ impl Window {
     }
 
     fn bounds_changed(&mut self, cx: &mut App) {
-        self.scale_factor = self.platform_window.scale_factor();
-        self.viewport_size = self.platform_window.content_size();
-        self.display_id = self.platform_window.display().map(|display| display.id());
-
-        self.refresh();
+        let scale_factor = self.platform_window.scale_factor();
+        let viewport_size = self.platform_window.content_size();
+        let display_id = self.platform_window.display().map(|display| display.id());
+        // Moving the native window on the same display does not change its scene.
+        // Keep bounds observers informed without rebuilding layout on every WM_MOVE.
+        if self.scale_factor != scale_factor
+            || self.viewport_size != viewport_size
+            || self.display_id != display_id
+        {
+            self.scale_factor = scale_factor;
+            self.viewport_size = viewport_size;
+            self.display_id = display_id;
+            self.refresh();
+        }
 
         self.bounds_observers
             .clone()

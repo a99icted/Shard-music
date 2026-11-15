@@ -422,12 +422,16 @@ impl MusicApp {
             return;
         };
         let code = self.sync_input.read(cx).value().to_owned();
+        let generation = self.sync_job_generation;
         let task = cx
             .background_executor()
             .spawn(async move { service.pair(&code) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |app, cx| {
+                if app.sync_job_generation != generation || app.sync_service.is_none() {
+                    return;
+                }
                 match result {
                     Ok(()) => app.message = Some(tr("Устройства подключены").into()),
                     Err(error) => app.error = Some(format!("{error:#}")),

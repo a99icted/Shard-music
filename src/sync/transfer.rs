@@ -217,8 +217,8 @@ impl SyncService {
         }
         validate_manifest(&manifest)?;
         let inspection = {
-            let mut stream = connect(&target)?;
-            stream.set_read_timeout(Some(Duration::from_secs(600)))?;
+            let mut stream = self.connect(&target)?;
+            stream.set_read_timeout(Duration::from_secs(600));
             write_json(
                 &mut stream,
                 &Request::Inspect {
@@ -267,8 +267,8 @@ impl SyncService {
             inspection.duplicates.iter().map(|d| d.index).collect()
         };
         self.active()?;
-        let mut stream = connect(&target)?;
-        stream.set_read_timeout(Some(Duration::from_secs(600)))?;
+        let mut stream = self.connect(&target)?;
+        stream.set_read_timeout(Duration::from_secs(600));
         write_json(
             &mut stream,
             &Request::Transfer {
@@ -343,7 +343,11 @@ impl SyncService {
             Ok(false)
         }
     }
-    pub(super) fn inspect(&self, stream: &mut TcpStream, manifest: &Manifest) -> Result<()> {
+    pub(super) fn inspect(
+        &self,
+        stream: &mut CancellableStream,
+        manifest: &Manifest,
+    ) -> Result<()> {
         validate_manifest(manifest)?;
         let done = self.completed(manifest)?;
         let duplicates = if done {
@@ -501,7 +505,7 @@ impl SyncService {
     }
     pub(super) fn receive(
         &self,
-        stream: &mut TcpStream,
+        stream: &mut CancellableStream,
         manifest: Manifest,
         copies: &[usize],
     ) -> Result<()> {
@@ -634,6 +638,7 @@ impl SyncService {
             };
             let mut imported = Vec::new();
             for (index, entry) in manifest.tracks.iter().enumerate() {
+                self.active()?;
                 let id = match plan.matches[index] {
                     Match::Local(id) => {
                         report.reused += 1;
@@ -684,6 +689,7 @@ impl SyncService {
                     fingerprint(&manifest)?
                 ],
             )?;
+            self.active()?;
             tx.commit()?;
             Ok(())
         })();
@@ -710,12 +716,6 @@ impl SyncService {
     }
 }
 
-fn connect(target: &PairingCode) -> Result<TcpStream> {
-    let stream = TcpStream::connect_timeout(&target.address, Duration::from_secs(8))
-        .context("Устройство недоступно")?;
-    configure(&stream)?;
-    Ok(stream)
-}
 fn cache_paths(db: &Database, entry: &WireTrack) -> (PathBuf, PathBuf) {
     let name = format!("{}.{}", entry.hash, entry.extension);
     (

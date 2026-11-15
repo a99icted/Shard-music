@@ -535,10 +535,10 @@ impl MusicApp {
     fn queue_panel(&self, overlay: bool, cx: &mut Context<Self>) -> AnyElement {
         let colors = self.colors();
         let state = self.player.state();
-        let current = self
-            .tracks
-            .iter()
-            .find(|track| Some(track.id) == state.track_id);
+        let current = state
+            .track_id
+            .and_then(|id| self.track_index.get(&id))
+            .and_then(|index| self.tracks.get(*index));
         let mut panel = div()
             .id("queue-panel")
             .w(px(288.))
@@ -884,10 +884,10 @@ impl MusicApp {
     fn footer(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         let colors = self.colors();
         let state = self.player.state();
-        let current = self
-            .tracks
-            .iter()
-            .find(|track| Some(track.id) == state.track_id);
+        let current = state
+            .track_id
+            .and_then(|id| self.track_index.get(&id))
+            .and_then(|index| self.tracks.get(*index));
         let position = self.seek_preview.unwrap_or(state.position_ms);
         let duration = current
             .and_then(|track| track.duration_ms)
@@ -906,7 +906,35 @@ impl MusicApp {
             .gap_3()
             .child(self.artwork(0, if compact { 36. } else { 48. }));
         caption = if let Some(track) = current {
-            caption.child(self.track_caption(track, false))
+            let id = track.id;
+            let favorite = self.favorite_ids.contains(&id);
+            caption.child(self.track_caption(track, false)).child(
+                div()
+                    .id("favorite-playing-track")
+                    .size_8()
+                    .flex_shrink_0()
+                    .rounded_lg()
+                    .cursor_pointer()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .hover(move |s| s.bg(rgb(colors.button_hover)))
+                    .child(
+                        svg()
+                            .path(if favorite {
+                                "icons/heart.svg"
+                            } else {
+                                "icons/heart-outline.svg"
+                            })
+                            .size_5()
+                            .text_color(rgb(if favorite {
+                                colors.accent
+                            } else {
+                                colors.muted
+                            })),
+                    )
+                    .on_click(cx.listener(move |app, _, _, cx| app.toggle_favorite(id, cx))),
+            )
         } else {
             caption.child(
                 div()

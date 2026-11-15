@@ -37,6 +37,14 @@ UTF-8 JSON bytes. Frames are limited to 8 MiB. Socket read/write timeouts are
 30 seconds; the sender allows 600 seconds for inspection, preparation and commit.
 A connection handles one request.
 
+Disabling synchronization immediately drops the listening socket, shuts down
+registered incoming/outgoing connections and wakes the listener worker. Windows
+can leave a receive pending after shutdown on a duplicate socket handle, so
+established connections use 100 ms OS I/O timeouts with cancellation checks while
+preserving the logical deadlines above. Partial frames are retained across these
+short waits; disabling does not wait for the 30/600 second network deadline.
+Incomplete audio caches remain available for resume after reconnecting.
+
 ```json
 {
   "type": "pair",

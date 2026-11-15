@@ -5,6 +5,8 @@ mod components;
 mod home;
 #[path = "ui/settings.rs"]
 mod settings;
+#[path = "ui/sidebar.rs"]
+mod sidebar;
 #[path = "ui/synchronization.rs"]
 mod synchronization;
 
@@ -368,10 +370,11 @@ impl MusicApp {
                         last_player = Some(snapshot);
                         if window.is_window_active()
                             && app.home_open
+                            && snapshot.0.is_some()
+                            && !snapshot.1
                             && app.statistics_updated.elapsed() >= Duration::from_secs(5)
                         {
                             app.refresh_statistics(cx);
-                            changed = true;
                         }
                         if let Some(error) = app.player.take_error() {
                             app.error = Some(error);
@@ -1094,223 +1097,6 @@ impl MusicApp {
         self.error_details_open = false;
         self.player.take_error();
         cx.notify();
-    }
-
-    fn sidebar(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
-        let colors = self.colors();
-        let selected = self.selected_playlist;
-        let mini_download =
-            compact && self.busy.is_some() && !matches!(self.modal, Some(Modal::Import));
-        div()
-            .w(px(if compact { 176. } else { 224. }))
-            .h_full()
-            .flex_shrink_0()
-            .bg(self.surface(colors.panel))
-            .border_r_1()
-            .border_color(rgb(colors.border))
-            .p(px(if compact { 12. } else { 20. }))
-            .flex()
-            .flex_col()
-            .gap(px(if mini_download { 4. } else { 8. }))
-            .children((!mini_download).then(|| {
-                div()
-                    .id("home-logo")
-                    .cursor_pointer()
-                    .on_click(cx.listener(|app, _, window, cx| {
-                        app.settings_open = false;
-                        app.home_open = true;
-                        app.modal = None;
-                        app.search.update(cx, |search, cx| {
-                            search.reset();
-                            cx.notify();
-                        });
-                        app.refresh(cx);
-                        window.focus(&app.focus);
-                    }))
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .mb(px(if compact { 12. } else { 28. }))
-                    .mt_2()
-                    .child(
-                        img(self.preferences.theme.logo_path())
-                            .size(px(if compact { 44. } else { 52. }))
-                            .flex_shrink_0(),
-                    )
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_weight(FontWeight::BOLD)
-                            .child("Shard"),
-                    )
-            }))
-            .children((!mini_download).then(|| {
-                div()
-                    .text_xs()
-                    .text_color(rgb(colors.muted))
-                    .mb_2()
-                    .child(tr("ВАША МУЗЫКА"))
-            }))
-            .children(mini_download.then(|| {
-                self.button("mini-home", tr("⌂ Главная"), false)
-                    .py_2()
-                    .on_click(cx.listener(|app, _, _, cx| {
-                        app.settings_open = false;
-                        app.home_open = true;
-                        app.refresh(cx);
-                    }))
-            }))
-            .child(
-                div()
-                    .id("library")
-                    .flex_shrink_0()
-                    .px_3()
-                    .py_3()
-                    .rounded_lg()
-                    .cursor_pointer()
-                    .bg(rgb(if selected.is_none() {
-                        colors.active
-                    } else {
-                        colors.panel
-                    }))
-                    .text_color(rgb(if selected.is_none() {
-                        colors.accent
-                    } else {
-                        colors.text
-                    }))
-                    .hover(move |s| s.bg(rgb(colors.button_hover)))
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(div().text_color(rgb(colors.accent)).child("▤"))
-                    .child(div().flex_1().child(tr("Все треки")))
-                    .child(div().text_xs().child(self.tracks.len().to_string()))
-                    .on_click(cx.listener(|app, _, _, cx| {
-                        app.settings_open = false;
-                        app.home_open = false;
-                        app.selected_playlist = None;
-                        app.search.update(cx, |s, cx| {
-                            s.reset();
-                            cx.notify();
-                        });
-                        app.refresh(cx);
-                    })),
-            )
-            .child(
-                div()
-                    .mt(px(if compact { 12. } else { 28. }))
-                    .mb_2()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(rgb(colors.muted))
-                            .child(tr("ПЛЕЙЛИСТЫ")),
-                    )
-                    .child(
-                        div()
-                            .id("new-playlist")
-                            .cursor_pointer()
-                            .text_lg()
-                            .text_color(rgb(colors.muted))
-                            .hover(move |s| s.text_color(rgb(colors.accent)))
-                            .child("+")
-                            .on_click(cx.listener(|app, _, window, cx| {
-                                app.open_modal(Modal::CreatePlaylist, window, cx)
-                            })),
-                    ),
-            )
-            .child(
-                div()
-                    .id("playlist-scroll")
-                    .flex_1()
-                    .min_h(px(if mini_download { 48. } else { 0. }))
-                    .overflow_y_scroll()
-                    .children(self.playlists.iter().map(|playlist| {
-                        let id = playlist.id;
-                        let delete = playlist.clone();
-                        div()
-                            .id(("playlist", id as u64))
-                            .px_3()
-                            .py_3()
-                            .mb_1()
-                            .rounded_lg()
-                            .cursor_pointer()
-                            .bg(rgb(if selected == Some(id) {
-                                colors.active
-                            } else {
-                                colors.panel
-                            }))
-                            .hover(move |s| s.bg(rgb(colors.button_hover)))
-                            .child(
-                                div()
-                                    .flex()
-                                    .gap_2()
-                                    .items_center()
-                                    .child(self.playlist_artwork(playlist, 24.))
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .overflow_hidden()
-                                            .text_ellipsis()
-                                            .child(playlist.name.clone()),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(rgb(colors.muted))
-                                            .child(playlist.track_count.to_string()),
-                                    ),
-                            )
-                            .on_click(cx.listener(move |app, _, _, cx| {
-                                app.settings_open = false;
-                                app.home_open = false;
-                                app.selected_playlist = Some(id);
-                                app.search.update(cx, |s, cx| {
-                                    s.reset();
-                                    cx.notify();
-                                });
-                                app.refresh(cx);
-                            }))
-                            .on_mouse_down(
-                                MouseButton::Right,
-                                cx.listener(move |app, _, window, cx| {
-                                    cx.stop_propagation();
-                                    app.open_modal(
-                                        Modal::PlaylistActions(delete.clone()),
-                                        window,
-                                        cx,
-                                    );
-                                }),
-                            )
-                    })),
-            )
-            .children(self.sync_progress_card())
-            .children(self.download_card(cx))
-            .child(
-                self.button("open-settings", tr("⚙  Настройки"), self.settings_open)
-                    .py_2()
-                    .on_click(cx.listener(|app, _, window, cx| {
-                        app.settings_open = true;
-                        app.modal = None;
-                        app.blur_preview = None;
-                        window.focus(&app.focus);
-                        cx.notify();
-                    })),
-            )
-            .children((!compact).then(|| {
-                div()
-                    .pt_4()
-                    .border_t_1()
-                    .border_color(rgb(colors.border))
-                    .text_xs()
-                    .text_color(rgb(colors.muted))
-                    .child(tr("●  Локальная коллекция"))
-                    .child(div().mt_2().child(tr("Ваша музыка. На вашем устройстве.")))
-            }))
-            .into_any_element()
     }
 
     fn modal_view(&self, viewport: Size<Pixels>, cx: &mut Context<Self>) -> Option<AnyElement> {

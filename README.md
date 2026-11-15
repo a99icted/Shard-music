@@ -20,12 +20,13 @@ English | [Русский](README.ru.md)
 - **Personal playlists:** edit names, choose covers and backgrounds, adjust blur, and pick a header color with compact sliders or HEX. Shuffle starts playback immediately.
 - **Make it yours:** four themes and a Russian / English interface, switchable without restarting.
 - **Everyday playback:** system tray, Windows taskbar controls, listening statistics, and a library that survives restarts.
+- **Collapsible sidebar:** use the top button to show just the logo and playlist icons, with names on hover. The layout is remembered after restarting. A heart in the player bar lets you favorite the current track.
 
 Spotify and Yandex Music supply metadata; the audio is downloaded from YouTube. Availability depends on public metadata and accessible YouTube videos. Failed tracks appear in the import report; completed downloads stay in your library. Download only content you have permission to save.
 
 ## Install
 
-Download **`Shard-0.1.3-Setup-x64.exe`** from [Releases](https://github.com/a99icted/Shard-music/releases).
+Download **`Shard-0.1.4-Setup-x64.exe`** from [Releases](https://github.com/a99icted/Shard-music/releases).
 
 **Windows 10 (2004 or later) / Windows 11, x64.** The installer includes the player, yt-dlp, FFmpeg, ffprobe, Node.js, and the Visual C++ runtime. No separate Rust or Node.js installation is needed. Installation requires no administrator rights; uninstalling preserves your music and settings.
 

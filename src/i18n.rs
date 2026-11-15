@@ -549,6 +549,10 @@ pub fn tr(text: &str) -> &str {
         "Выберите: использовать имеющийся трек или передать ещё одну копию." => {
             "Choose whether to use an existing track or send another copy."
         }
+        "Свернуть / развернуть боковую панель" => {
+            "Collapse / expand sidebar"
+        }
+        "Главная" => "Home",
         _ => text,
     }
 }

@@ -69,6 +69,7 @@ impl PreferencesWriter {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Preferences {
+    pub sidebar_collapsed: bool,
     pub sync_warn_duplicates: bool,
     pub sync_ignore_duplicates: bool,
     pub sync_enabled: bool,
@@ -85,6 +86,7 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            sidebar_collapsed: false,
             sync_warn_duplicates: true,
             sync_ignore_duplicates: false,
             sync_enabled: false,
@@ -143,10 +145,12 @@ mod tests {
     fn preferences_survive_restart_and_handle_invalid_files() {
         let root = tempfile::tempdir().unwrap();
         let defaults = Preferences::load(root.path());
+        assert!(!defaults.sidebar_collapsed);
         assert!(defaults.sync_warn_duplicates);
         assert!(!defaults.sync_ignore_duplicates);
         let preferences = Preferences {
             language: crate::i18n::Language::English,
+            sidebar_collapsed: true,
             volume: 0.32,
             shuffle: true,
             queue_visible: false,
@@ -159,6 +163,7 @@ mod tests {
         preferences.save(root.path()).unwrap();
         preferences.save(root.path()).unwrap();
         let reopened = Preferences::load(root.path());
+        assert!(reopened.sidebar_collapsed);
         assert_eq!(reopened.volume, 0.32);
         assert_eq!(reopened.language, crate::i18n::Language::English);
         assert!(reopened.shuffle);
@@ -180,6 +185,7 @@ mod tests {
         assert_eq!(Preferences::load(root.path()).volume, 0.7);
         fs::write(root.path().join("settings.json"), r#"{"volume":4}"#).unwrap();
         let upgraded = Preferences::load(root.path());
+        assert!(!upgraded.sidebar_collapsed);
         assert_eq!(upgraded.volume, 1.0);
         assert!(upgraded.sync_warn_duplicates);
         assert!(!upgraded.sync_ignore_duplicates);

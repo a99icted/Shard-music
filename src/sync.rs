@@ -11,13 +11,14 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{Read, Write},
-    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, UdpSocket},
+    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, UdpSocket},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -182,7 +183,7 @@ impl Reply {
         Ok(self)
     }
 }
-fn write_json(stream: &mut TcpStream, value: &impl Serialize) -> Result<()> {
+fn write_json(stream: &mut impl Write, value: &impl Serialize) -> Result<()> {
     let bytes = serde_json::to_vec(value)?;
     ensure!(
         bytes.len() <= MAX_JSON,
@@ -192,7 +193,7 @@ fn write_json(stream: &mut TcpStream, value: &impl Serialize) -> Result<()> {
     stream.write_all(&bytes)?;
     Ok(())
 }
-fn read_json<T: for<'a> Deserialize<'a>>(stream: &mut TcpStream) -> Result<T> {
+fn read_json<T: for<'a> Deserialize<'a>>(stream: &mut impl Read) -> Result<T> {
     let mut size = [0; 4];
     stream.read_exact(&mut size)?;
     let size = u32::from_be_bytes(size) as usize;
@@ -218,12 +219,76 @@ struct Inner {
     status: Mutex<SyncStatus>,
     stop: AtomicBool,
     transferring: AtomicBool,
+    listener: Mutex<Option<TcpListener>>,
+    sockets: Mutex<HashMap<u64, TcpStream>>,
+    next_socket: AtomicU64,
+    worker: Mutex<Option<std::thread::Thread>>,
 }
 #[derive(Clone)]
 pub struct SyncService {
     inner: Arc<Inner>,
 }
 struct TransferGuard<'a>(&'a AtomicBool);
+struct SocketGuard {
+    inner: Arc<Inner>,
+    id: u64,
+}
+// Windows shutdown() closes the connection for the peer, but a recv already in
+// progress on another duplicated handle may still wait for its socket timeout.
+// Short OS waits plus logical deadlines allow cancellation without truncating frames.
+struct CancellableStream {
+    stream: TcpStream,
+    guard: SocketGuard,
+    read_timeout: Option<Duration>,
+}
+impl CancellableStream {
+    fn set_read_timeout(&mut self, timeout: Duration) {
+        self.read_timeout = Some(timeout);
+    }
+    fn retry<T>(
+        &self,
+        timeout: Option<Duration>,
+        mut operation: impl FnMut() -> std::io::Result<T>,
+    ) -> std::io::Result<T> {
+        let started = std::time::Instant::now();
+        loop {
+            if self.guard.inner.stop.load(Ordering::Acquire) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "Синхронизация выключена",
+                ));
+            }
+            match operation() {
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                    ) && timeout.is_none_or(|limit| started.elapsed() < limit) => {}
+                result => return result,
+            }
+        }
+    }
+}
+impl Read for CancellableStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.retry(self.read_timeout, || (&self.stream).read(buffer))
+    }
+}
+impl Write for CancellableStream {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.retry(Some(Duration::from_secs(30)), || {
+            (&self.stream).write(buffer)
+        })
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+impl Drop for SocketGuard {
+    fn drop(&mut self) {
+        self.inner.sockets.lock().unwrap().remove(&self.id);
+    }
+}
 impl Drop for TransferGuard<'_> {
     fn drop(&mut self) {
         self.0.store(false, Ordering::Release);
@@ -265,19 +330,33 @@ impl SyncService {
                 status: Mutex::new(SyncStatus::default()),
                 stop: AtomicBool::new(false),
                 transferring: AtomicBool::new(false),
+                listener: Mutex::new(Some(listener)),
+                sockets: Mutex::new(HashMap::new()),
+                next_socket: AtomicU64::new(0),
+                worker: Mutex::new(None),
             }),
         };
         let weak = Arc::downgrade(&service.inner);
-        std::thread::Builder::new()
+        let worker = std::thread::Builder::new()
             .name("shard-lan-sync".into())
             .spawn(move || {
                 while let Some(inner) = weak.upgrade() {
                     if inner.stop.load(Ordering::Acquire) {
                         break;
                     }
-                    match listener.accept() {
-                        Ok((mut stream, address)) if local_address(address.ip()) => {
+                    let accepted = {
+                        let listener = inner.listener.lock().unwrap();
+                        let Some(listener) = listener.as_ref() else {
+                            break;
+                        };
+                        listener.accept()
+                    };
+                    match accepted {
+                        Ok((stream, address)) if local_address(address.ip()) => {
                             let service = Self { inner };
+                            let Ok(mut stream) = service.socket(stream) else {
+                                continue;
+                            };
                             if let Err(error) = service.handle(&mut stream, address.ip()) {
                                 let _ = write_json(
                                     &mut stream,
@@ -294,17 +373,53 @@ impl SyncService {
                         Ok(_) => {}
                         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                             drop(inner);
-                            std::thread::sleep(Duration::from_millis(50));
+                            std::thread::park_timeout(Duration::from_millis(50));
                         }
                         Err(_) => break,
                     }
                 }
             })?;
+        *service.inner.worker.lock().unwrap() = Some(worker.thread().clone());
         Ok(service)
     }
     pub fn stop(&self) {
         self.inner.stop.store(true, Ordering::Release);
+        // Drop the listening socket now, even if the worker is blocked reading audio.
+        self.inner.listener.lock().unwrap().take();
+        for (_, stream) in self.inner.sockets.lock().unwrap().drain() {
+            let _ = stream.shutdown(Shutdown::Both);
+        }
+        if let Some(worker) = self.inner.worker.lock().unwrap().as_ref() {
+            worker.unpark();
+        }
         *self.inner.peer.lock().unwrap() = None;
+    }
+    fn track_socket(&self, stream: &TcpStream) -> Result<SocketGuard> {
+        let mut sockets = self.inner.sockets.lock().unwrap();
+        self.active()?;
+        let id = self.inner.next_socket.fetch_add(1, Ordering::Relaxed);
+        sockets.insert(id, stream.try_clone()?);
+        Ok(SocketGuard {
+            inner: self.inner.clone(),
+            id,
+        })
+    }
+    fn socket(&self, stream: TcpStream) -> Result<CancellableStream> {
+        configure(&stream)?;
+        stream.set_read_timeout(Some(Duration::from_millis(100)))?;
+        stream.set_write_timeout(Some(Duration::from_millis(100)))?;
+        let guard = self.track_socket(&stream)?;
+        Ok(CancellableStream {
+            stream,
+            guard,
+            read_timeout: Some(Duration::from_secs(30)),
+        })
+    }
+    fn connect(&self, target: &PairingCode) -> Result<CancellableStream> {
+        self.active()?;
+        let stream = TcpStream::connect_timeout(&target.address, Duration::from_secs(8))
+            .context("Устройство недоступно. Проверьте локальную сеть и брандмауэр")?;
+        self.socket(stream)
     }
     pub fn code(&self) -> &str {
         &self.inner.code
@@ -363,9 +478,7 @@ impl SyncService {
             target.token != self.inner.token,
             "Это код текущего устройства"
         );
-        let mut stream = TcpStream::connect_timeout(&target.address, Duration::from_secs(8))
-            .context("Устройство недоступно. Проверьте локальную сеть и брандмауэр")?;
-        configure(&stream)?;
+        let mut stream = self.connect(&target)?;
         write_json(
             &mut stream,
             &Request::Pair {
@@ -391,8 +504,7 @@ impl SyncService {
         self.set_peer(peer);
         Ok(())
     }
-    fn handle(&self, stream: &mut TcpStream, address: IpAddr) -> Result<()> {
-        configure(stream)?;
+    fn handle(&self, stream: &mut CancellableStream, address: IpAddr) -> Result<()> {
         let request: Request = read_json(stream)?;
         self.active()?;
         match request {
@@ -593,6 +705,150 @@ fn validate_manifest(manifest: &Manifest) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[track_caller]
+    fn wait_until(mut ready: impl FnMut() -> bool) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !ready() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "Worker did not reach expected state"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+    fn assert_closed(stream: &mut TcpStream) {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(1)))
+            .unwrap();
+        match stream.read(&mut [0; 1]) {
+            Ok(0) => {}
+            Err(error) => assert!(
+                !matches!(
+                    error.kind(),
+                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                ),
+                "Socket stayed open: {error}"
+            ),
+            result => panic!("Expected a closed socket, got {result:?}"),
+        }
+    }
+    #[test]
+    fn stop_closes_listener_and_stalled_incoming_socket_without_waiting_for_timeout() {
+        let root = tempfile::tempdir().unwrap();
+        let receiver = service(Database::open(root.path()).unwrap());
+        let address = PairingCode::parse(receiver.code()).unwrap().address;
+        let mut stalled = TcpStream::connect(address).unwrap();
+        wait_until(|| !receiver.inner.sockets.lock().unwrap().is_empty());
+        // The peer has not sent even the frame header; the old implementation waited 30s here.
+        let start = std::time::Instant::now();
+        receiver.stop();
+        assert!(start.elapsed() < Duration::from_millis(250));
+        assert!(!receiver.is_enabled());
+        assert!(receiver.inner.listener.lock().unwrap().is_none());
+        assert!(receiver.inner.sockets.lock().unwrap().is_empty());
+        assert!(TcpStream::connect_timeout(&address, Duration::from_millis(200)).is_err());
+        assert_closed(&mut stalled);
+        receiver.stop();
+        let weak = Arc::downgrade(&receiver.inner);
+        drop(receiver);
+        wait_until(|| weak.upgrade().is_none());
+    }
+    #[test]
+    fn stop_interrupts_outgoing_duplicate_inspection() {
+        let root = tempfile::tempdir().unwrap();
+        let db = Database::open(root.path()).unwrap();
+        let path = root.path().join("song.wav");
+        wav(&path, 0);
+        let track = TrackService::new(db.clone()).import_local(&path).unwrap();
+        let sender = service(db);
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        sender.set_peer(Peer {
+            device: Uuid::new_v4().to_string(),
+            code: format!("shard-sync://{address}/{}", Uuid::new_v4()),
+            name: "Stalled receiver".into(),
+        });
+        let (ready, arrived) = std::sync::mpsc::channel();
+        let remote = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            configure(&stream).unwrap();
+            assert!(matches!(
+                read_json::<Request>(&mut stream).unwrap(),
+                Request::Inspect { .. }
+            ));
+            ready.send(()).unwrap();
+            assert_closed(&mut stream);
+        });
+        let sending = sender.clone();
+        let (done, finished) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || done.send(sending.send_track(track.id)).unwrap());
+        arrived.recv_timeout(Duration::from_secs(15)).unwrap();
+        sender.stop();
+        assert!(
+            finished
+                .recv_timeout(Duration::from_millis(500))
+                .unwrap()
+                .is_err()
+        );
+        worker.join().unwrap();
+        remote.join().unwrap();
+        assert!(!sender.is_transferring());
+    }
+    #[test]
+    fn stop_interrupts_incoming_audio_and_preserves_partial_cache() {
+        let a_root = tempfile::tempdir().unwrap();
+        let b_root = tempfile::tempdir().unwrap();
+        let a_db = Database::open(a_root.path()).unwrap();
+        let b_db = Database::open(b_root.path()).unwrap();
+        let path = a_root.path().join("song.wav");
+        wav(&path, 0);
+        let audio = TrackService::new(a_db.clone());
+        let track = audio.import_local(&path).unwrap();
+        let a = service(a_db);
+        let b = service(b_db.clone());
+        a.pair(b.code()).unwrap();
+        let transfer = manifest(&a, Some(42), &[track]);
+        let (mut stream, reply) = start_transfer(&b, transfer.clone(), vec![]);
+        assert_eq!(reply.missing, vec![0]);
+        let entry = &transfer.tracks[0];
+        let bytes = fs::read(&path).unwrap();
+        stream.write_all(&bytes[..30000]).unwrap();
+        let partial = b_db
+            .root()
+            .join("sync-cache")
+            .join(format!("{}.wav.part", entry.hash));
+        wait_until(|| fs::metadata(&partial).is_ok_and(|m| m.len() == 30000));
+        b.stop();
+        assert_closed(&mut stream);
+        wait_until(|| !b.is_transferring());
+        assert!(
+            TrackRepository::new(b_db.clone())
+                .list_tracks()
+                .unwrap()
+                .is_empty()
+        );
+        let restarted = SyncService::listen(
+            b_db.clone(),
+            b.inner.device.clone(),
+            "Restarted".into(),
+            "127.0.0.1:0".parse().unwrap(),
+            Ipv4Addr::LOCALHOST.into(),
+        )
+        .unwrap();
+        a.pair(restarted.code()).unwrap();
+        let (mut stream, reply) = start_transfer(&restarted, transfer, vec![]);
+        assert_eq!(reply.offsets, vec![30000]);
+        stream.write_all(&bytes[30000..]).unwrap();
+        let report = read_json::<Reply>(&mut stream)
+            .unwrap()
+            .check()
+            .unwrap()
+            .report;
+        assert_eq!(report.copied, 1);
+        assert_eq!(report.resumed_bytes, 30000);
+        a.stop();
+        restarted.stop();
+    }
     fn wav(path: &Path, sample: u8) {
         let data_size = 160_000u32;
         let mut bytes = Vec::new();
