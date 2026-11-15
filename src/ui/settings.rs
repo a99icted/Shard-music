@@ -5,6 +5,7 @@ use super::*;
 pub(super) enum SettingsCategory {
     Customization,
     Language,
+    Synchronization,
 }
 
 impl MusicApp {
@@ -342,6 +343,17 @@ impl MusicApp {
                             app.settings_category = SettingsCategory::Language;
                             cx.notify();
                         })),
+                    )
+                    .child(
+                        self.button(
+                            "settings-sync",
+                            tr("Синхронизация"),
+                            self.settings_category == SettingsCategory::Synchronization,
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.settings_category = SettingsCategory::Synchronization;
+                            cx.notify();
+                        })),
                     ),
             )
             .children(self.notifications(cx))
@@ -353,6 +365,9 @@ impl MusicApp {
                     .child(label.clone())
             }));
         match self.settings_category {
+            SettingsCategory::Synchronization => {
+                view = view.child(self.sync_settings(cx));
+            }
             SettingsCategory::Language => {
                 view = view.child(
                     div()

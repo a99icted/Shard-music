@@ -209,7 +209,7 @@ impl MusicApp {
                     .bg(self.surface(colors.panel))
                     .text_color(rgb(colors.muted))
                     .child(tr(
-                        "Создайте плейлист или добавьте его по ссылке YouTube или Spotify.",
+                        "Создайте плейлист или добавьте его по ссылке YouTube, Spotify или Яндекс Музыки.",
                     )),
             )
         } else {

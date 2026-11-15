@@ -24,6 +24,51 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 
 CREATE INDEX IF NOT EXISTS playlist_tracks_track_id ON playlist_tracks(track_id);
 
+CREATE TABLE IF NOT EXISTS favorites (
+    track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sync_tracks (
+    content_hash TEXT PRIMARY KEY,
+    track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS sync_playlists (
+    source_device TEXT NOT NULL,
+    source_playlist TEXT NOT NULL,
+    playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    PRIMARY KEY(source_device, source_playlist)
+);
+
+CREATE TABLE IF NOT EXISTS sync_file_index (
+    track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+    content_hash TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    modified TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sync_outgoing (
+    scope TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    transfer_id TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sync_receipts (
+    source_device TEXT NOT NULL,
+    transfer_id TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    PRIMARY KEY (source_device, transfer_id)
+);
+
+CREATE TABLE IF NOT EXISTS sync_origins (
+    source_device TEXT NOT NULL,
+    source_track TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+    PRIMARY KEY (source_device, source_track, content_hash)
+);
+
 CREATE TABLE IF NOT EXISTS playlist_appearance (
     playlist_id INTEGER PRIMARY KEY REFERENCES playlists(id) ON DELETE CASCADE,
     cover_path TEXT,

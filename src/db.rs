@@ -19,12 +19,12 @@ impl Database {
         let mut conn = db.connect()?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if version > 4 {
+        if version > 6 {
             bail!("База данных создана более новой версией Shard");
         }
         let tx = conn.transaction()?;
         tx.execute_batch(include_str!("schema.sql"))?;
-        tx.pragma_update(None, "user_version", 4)?;
+        tx.pragma_update(None, "user_version", 6)?;
         tx.commit()?;
         Ok(db)
     }

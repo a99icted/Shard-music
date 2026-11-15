@@ -10,6 +10,22 @@ mod player;
 mod ui {
     include!("../src/ui.rs");
 
+    // Exercise real duplicate review against a second temporary library.
+    pub fn prepare_sync(
+        app: &mut MusicApp,
+        peer_code: &str,
+        window: &mut Window,
+        cx: &mut Context<MusicApp>,
+    ) -> anyhow::Result<()> {
+        app.start_sync(cx);
+        app.sync_service
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Preview synchronization did not start"))?
+            .pair(peer_code)?;
+        app.request_sync(shard::sync::SyncSelection::Library, window, cx);
+        Ok(())
+    }
+
     // Deterministic UI fixture; uses the same worker, progress channel and cancellation
     // path as an import, without network access or changes to the user's library.
     pub fn simulate_download(app: &mut MusicApp, cx: &mut Context<MusicApp>) {
@@ -57,6 +73,7 @@ fn main() -> Result<()> {
     let height: f32 = args.next().unwrap_or("640".into()).parse()?;
     let options: Vec<_> = args.collect();
     let simulate_download = options.iter().any(|arg| arg == "--download");
+    let simulate_sync = options.iter().any(|arg| arg == "--sync");
     #[cfg(windows)]
     let taskbar = options.iter().any(|arg| arg == "--taskbar");
     let track_count: usize = options
@@ -134,6 +151,19 @@ fn main() -> Result<()> {
             }
         }
     }
+    let receiver_root = tempfile::tempdir()?;
+    let receiver = if simulate_sync {
+        let receiver_db = Database::open(receiver_root.path())?;
+        shard::services::TrackService::new(receiver_db.clone()).import_local(&silent_audio)?;
+        Some(shard::sync::SyncService::start(
+            receiver_db,
+            uuid::Uuid::new_v4().to_string(),
+            "Preview receiver".into(),
+        )?)
+    } else {
+        None
+    };
+    let peer_code = receiver.as_ref().map(|service| service.code().to_owned());
     Application::new()
         .with_assets(shard::branding::Assets)
         .run(move |cx: &mut App| {
@@ -157,6 +187,10 @@ fn main() -> Result<()> {
                         if simulate_download {
                             ui::simulate_download(&mut app, cx);
                         }
+                        if let Some(code) = &peer_code {
+                            ui::prepare_sync(&mut app, code, window, cx)
+                                .expect("prepare sync preview");
+                        }
                         app
                     });
                     #[cfg(windows)]
@@ -176,6 +210,9 @@ fn main() -> Result<()> {
             .detach();
             cx.activate(true);
         });
+    if let Some(receiver) = receiver {
+        receiver.stop();
+    }
     drop(root);
     Ok(())
 }

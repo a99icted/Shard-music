@@ -7,10 +7,13 @@ English | [Русский](README.ru.md)
 <h1 align="center">Shard</h1>
 <p align="center">Your music. On your device.</p>
 
-**Shard is a lightweight music player for Windows, written in Rust.** Listen to local music, organize playlists, and download tracks from YouTube or import them through Spotify links. A native GPUI interface keeps the player lean, without a browser engine or gigabytes of RAM overhead.
+**Shard is a lightweight music player for Windows, written in Rust.** Listen to local music, organize playlists, download tracks from YouTube or import them through Spotify and Yandex Music links, and transfer music between devices on your local network. A native GPUI interface keeps the player lean, without a browser engine or gigabytes of RAM overhead.
 
 ## Features
 
+- **Favorites:** a built-in playlist with a theme-colored SVG heart. Track hearts share persistent favorite status across playlists; the ⋯ menu still adds tracks to regular playlists.
+- **Yandex Music:** import tracks, albums and public playlists by link. Public metadata supplies titles and artists; matching audio is downloaded from YouTube.
+- **LAN synchronization:** enable Settings → Synchronization on two devices and paste one client's code into the other. Send a track or playlist, including Favorites, from its ⋯ menu, with progress on both clients. The QR payload supports a future mobile client.
 - **Your local library:** import audio files, manage the queue, shuffle, repeat, and edit track titles and artists.
 - **YouTube downloads:** save a track or an entire playlist as MP3.
 - **Spotify links:** import tracks, albums, and public playlists. Shard reads public metadata, finds matching audio on YouTube, and preserves track names, artists, and order. No Spotify account or API key required.
@@ -18,24 +21,34 @@ English | [Русский](README.ru.md)
 - **Make it yours:** four themes and a Russian / English interface, switchable without restarting.
 - **Everyday playback:** system tray, Windows taskbar controls, listening statistics, and a library that survives restarts.
 
-Spotify supplies metadata; the audio is downloaded from YouTube. Availability depends on public Spotify data and accessible YouTube videos. Failed tracks appear in the import report; completed downloads stay in your library. Download only content you have permission to save.
+Spotify and Yandex Music supply metadata; the audio is downloaded from YouTube. Availability depends on public metadata and accessible YouTube videos. Failed tracks appear in the import report; completed downloads stay in your library. Download only content you have permission to save.
 
 ## Install
 
-Download **`Shard-0.1.2-Setup-x64.exe`** from [Releases](https://github.com/a99icted/Shard-music/releases).
+Download **`Shard-0.1.3-Setup-x64.exe`** from [Releases](https://github.com/a99icted/Shard-music/releases).
 
 **Windows 10 (2004 or later) / Windows 11, x64.** The installer includes the player, yt-dlp, FFmpeg, ffprobe, Node.js, and the Visual C++ runtime. No separate Rust or Node.js installation is needed. Installation requires no administrator rights; uninstalling preserves your music and settings.
 
 ## Quick start
 
-1. Click **Add music** to select local files or paste a YouTube / Spotify link.
+1. Click **Add music** to select local files or paste a YouTube / Spotify / Yandex Music link.
 2. Open a playlist and press **Listen** or **Shuffle** to start playback.
 3. Use the **pencil** in the playlist header to edit its name and appearance. An empty name keeps the previous one. The **⋯** menu contains track selection and playlist deletion.
 4. Open **Settings → Customization / Language** to change the theme, background, or interface language.
+5. Mark tracks with the heart to collect them in **Favorites**. To send music to another computer, open **Settings → Synchronization** on both devices and pair them with a connection code. Send a track or playlist from its **⋯** menu, or use **Synchronize all tracks** in settings or the library.
 
 The window close button hides Shard in the tray and keeps music playing. Choose **Exit** from the tray menu to quit. Launching Shard again brings the existing window forward.
 
 Music and settings are stored in `%LOCALAPPDATA%\Shard\Shard\data`. Removing a playlist leaves its tracks in your library.
+
+LAN synchronization sends a track, playlist or the entire library. Collection
+transfers open duplicate options: warnings default to on, and **Ignore duplicates**
+defaults to off. Skip/reuse matches or send additional copies, individually or for
+all matches. Sending a growing playlist again adds its new tracks. Retry an
+interrupted transfer to resume from the saved position, including after an app
+restart. Deletions, covers, backgrounds and settings are not transferred. Devices
+must reconnect after synchronization restarts, and both clients must support
+protocol version 2. See [docs/LAN_SYNC.md](docs/LAN_SYNC.md) for details and limits.
 
 ## Build from source
 

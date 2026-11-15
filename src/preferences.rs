@@ -69,6 +69,11 @@ impl PreferencesWriter {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Preferences {
+    pub sync_warn_duplicates: bool,
+    pub sync_ignore_duplicates: bool,
+    pub sync_enabled: bool,
+    pub sync_device_id: String,
+    pub sync_device_name: String,
     pub language: crate::i18n::Language,
     pub volume: f32,
     pub shuffle: bool,
@@ -80,6 +85,11 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            sync_warn_duplicates: true,
+            sync_ignore_duplicates: false,
+            sync_enabled: false,
+            sync_device_id: uuid::Uuid::new_v4().to_string(),
+            sync_device_name: std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Shard".into()),
             language: crate::i18n::Language::Russian,
             volume: 0.7,
             shuffle: false,
@@ -132,6 +142,9 @@ mod tests {
     #[test]
     fn preferences_survive_restart_and_handle_invalid_files() {
         let root = tempfile::tempdir().unwrap();
+        let defaults = Preferences::load(root.path());
+        assert!(defaults.sync_warn_duplicates);
+        assert!(!defaults.sync_ignore_duplicates);
         let preferences = Preferences {
             language: crate::i18n::Language::English,
             volume: 0.32,
@@ -139,6 +152,9 @@ mod tests {
             queue_visible: false,
             theme: crate::theme::Theme::Onyx,
             repeat: crate::queue::RepeatMode::One,
+            sync_warn_duplicates: false,
+            sync_ignore_duplicates: true,
+            ..Default::default()
         };
         preferences.save(root.path()).unwrap();
         preferences.save(root.path()).unwrap();
@@ -149,6 +165,8 @@ mod tests {
         assert!(!reopened.queue_visible);
         assert_eq!(reopened.theme, crate::theme::Theme::Onyx);
         assert_eq!(reopened.repeat, crate::queue::RepeatMode::One);
+        assert!(!reopened.sync_warn_duplicates);
+        assert!(reopened.sync_ignore_duplicates);
         for theme in [crate::theme::Theme::PickMe, crate::theme::Theme::Cosmic] {
             Preferences {
                 theme,
@@ -161,6 +179,9 @@ mod tests {
         fs::write(root.path().join("settings.json"), "broken").unwrap();
         assert_eq!(Preferences::load(root.path()).volume, 0.7);
         fs::write(root.path().join("settings.json"), r#"{"volume":4}"#).unwrap();
-        assert_eq!(Preferences::load(root.path()).volume, 1.0);
+        let upgraded = Preferences::load(root.path());
+        assert_eq!(upgraded.volume, 1.0);
+        assert!(upgraded.sync_warn_duplicates);
+        assert!(!upgraded.sync_ignore_duplicates);
     }
 }

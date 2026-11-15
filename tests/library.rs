@@ -26,6 +26,48 @@ fn wav(path: &Path) {
 }
 
 #[test]
+fn favorites_are_global_persistent_and_independent_of_playlist_membership() {
+    use shard::favorites::{FAVORITES_ID, FavoritesService};
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let source = root.path().join("favorite.wav");
+    wav(&source);
+    let service = TrackService::new(db.clone());
+    let track = service.import_local(&source).unwrap();
+    let lists = PlaylistService::new(db.clone());
+    let a = lists.create_playlist("A").unwrap();
+    let b = lists.create_playlist("B").unwrap();
+    lists.add_track(a, track.id).unwrap();
+    lists.add_track(b, track.id).unwrap();
+    assert!(lists.add_track(FAVORITES_ID, track.id).unwrap());
+    assert!(!lists.add_track(FAVORITES_ID, track.id).unwrap());
+    lists.remove_track(a, track.id).unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let favorites = FavoritesService::new(db.clone());
+    assert!(favorites.ids().unwrap().contains(&track.id));
+    assert_eq!(
+        favorites.tracks().unwrap().as_slice(),
+        std::slice::from_ref(&track)
+    );
+    assert_eq!(favorites.playlist().unwrap().track_count, 1);
+    assert_eq!(
+        lists.list_playlist_tracks(b).unwrap().as_slice(),
+        std::slice::from_ref(&track)
+    );
+    assert!(lists.delete_playlist(FAVORITES_ID).is_err());
+    assert!(lists.rename_playlist(FAVORITES_ID, "Other").is_err());
+    lists.remove_track(FAVORITES_ID, track.id).unwrap();
+    assert!(favorites.ids().unwrap().is_empty());
+    assert_eq!(
+        lists.list_playlist_tracks(b).unwrap().as_slice(),
+        std::slice::from_ref(&track)
+    );
+    favorites.set(track.id, true).unwrap();
+    service.delete_track(track.id).unwrap();
+    assert!(favorites.ids().unwrap().is_empty());
+}
+
+#[test]
 fn metadata_edits_survive_restart_and_preserve_audio_and_membership() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("library");

@@ -1,29 +1,12 @@
 //! Public Spotify metadata only. Audio is independently matched on YouTube.
 use crate::i18n::tr;
-use crate::youtube::{
-    DownloadedAudio, YoutubeClient, YoutubeEntry, YoutubePlaylist, YoutubeSource,
-};
+use crate::music_metadata::{Collection, CollectionTrack};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 use std::{
-    path::Path,
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
-
-#[derive(Clone, Debug)]
-pub(crate) struct SpotifyTrack {
-    pub title: String,
-    pub artist: String,
-    pub url: url::Url,
-    pub duration_ms: Option<u64>,
-}
-
-pub(crate) struct SpotifyCollection {
-    pub title: String,
-    pub tracks: Vec<SpotifyTrack>,
-    pub is_collection: bool,
-}
 
 /// Accept only canonical public track/playlist/album links, including localized and embed links.
 pub fn validate_spotify_url(input: &str) -> Result<url::Url> {
@@ -59,7 +42,7 @@ pub fn validate_spotify_url(input: &str) -> Result<url::Url> {
     ))?)
 }
 
-pub(crate) fn fetch(url: &url::Url, cancel: &AtomicBool) -> Result<SpotifyCollection> {
+pub(crate) fn fetch(url: &url::Url, cancel: &AtomicBool) -> Result<Collection> {
     ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
     let agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(25)))
@@ -88,7 +71,7 @@ fn text<'a>(value: &'a Value, field: &str) -> &'a str {
         .trim()
 }
 
-pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<SpotifyCollection> {
+pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
     let marker = html
         .find("id=\"__NEXT_DATA__\"")
         .context(tr("Spotify не предоставил открытый список треков"))?;
@@ -145,7 +128,7 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<SpotifyCollectio
             !artist.is_empty(),
             tr("Spotify вернул трек без исполнителя")
         );
-        tracks.push(SpotifyTrack {
+        tracks.push(CollectionTrack {
             title: title.into(),
             artist,
             url: track_url,
@@ -153,74 +136,11 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<SpotifyCollectio
         });
     }
     ensure!(!tracks.is_empty(), tr("В Spotify нет доступных треков"));
-    Ok(SpotifyCollection {
+    Ok(Collection {
         title: text(entity, "title").into(),
         tracks,
         is_collection,
     })
-}
-
-pub(crate) struct SpotifySource {
-    pub youtube: YoutubeClient,
-    pub collection: SpotifyCollection,
-}
-impl SpotifySource {
-    pub fn entries(&self) -> YoutubePlaylist {
-        YoutubePlaylist {
-            title: self.collection.title.clone(),
-            entries: self
-                .collection
-                .tracks
-                .iter()
-                .map(|track| YoutubeEntry {
-                    title: format!("{} — {}", track.artist, track.title),
-                    url: Some(track.url.clone()),
-                })
-                .collect(),
-        }
-    }
-}
-impl YoutubeSource for SpotifySource {
-    fn playlist(&self, _: &url::Url, _: &AtomicBool) -> Result<YoutubePlaylist> {
-        Ok(self.entries())
-    }
-    fn track(
-        &self,
-        url: &url::Url,
-        staging: &Path,
-        cancel: &AtomicBool,
-    ) -> Result<DownloadedAudio> {
-        let metadata = self
-            .collection
-            .tracks
-            .iter()
-            .find(|t| &t.url == url)
-            .context(tr("Трек Spotify не найден"))?;
-        let candidates = self.youtube.search_candidates(
-            &metadata.title,
-            &metadata.artist,
-            metadata.duration_ms,
-            cancel,
-        )?;
-        let mut last_error = None;
-        for video in candidates {
-            ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
-            // Isolate every attempt so partial audio or JSON from a failed video
-            // cannot be reused by yt-dlp for a different match.
-            let attempt = tempfile::tempdir_in(staging)?;
-            match self.youtube.track(&video, attempt.path(), cancel) {
-                Ok(mut audio) => {
-                    let _ = attempt.keep();
-                    audio.info.track = Some(metadata.title.clone());
-                    audio.info.artist = Some(metadata.artist.clone());
-                    return Ok(audio);
-                }
-                Err(error) => last_error = Some(error),
-            }
-        }
-        ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
-        Err(last_error.expect("search_candidates always returns at least one match"))
-    }
 }
 
 #[cfg(test)]

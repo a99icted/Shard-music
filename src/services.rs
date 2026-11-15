@@ -40,7 +40,17 @@ impl TrackService {
         mut progress: impl FnMut(YoutubeProgress),
     ) -> Result<YoutubeDownloadReport> {
         let url = validate_music_url(input)?;
-        if url.host_str() != Some("open.spotify.com") {
+        if !matches!(
+            url.host_str(),
+            Some(
+                "open.spotify.com"
+                    | "music.yandex.ru"
+                    | "music.yandex.com"
+                    | "music.yandex.kz"
+                    | "music.yandex.by"
+                    | "music.yandex.uz"
+            )
+        ) {
             return self.download_youtube_collection(input, cancel, progress);
         }
         progress(YoutubeProgress {
@@ -48,7 +58,12 @@ impl TrackService {
             total: 0,
             current_title: None,
         });
-        let collection = match crate::spotify::fetch(&url, cancel) {
+        let metadata = if url.host_str() == Some("open.spotify.com") {
+            crate::spotify::fetch(&url, cancel)
+        } else {
+            crate::yandex::fetch(&url, cancel)
+        };
+        let collection = match metadata {
             Err(_) if cancel.load(Ordering::Relaxed) => {
                 return Ok(YoutubeDownloadReport {
                     cancelled: true,
@@ -57,7 +72,7 @@ impl TrackService {
             }
             result => result?,
         };
-        let source = crate::spotify::SpotifySource {
+        let source = crate::music_metadata::MetadataSource {
             youtube: YoutubeClient::new(self.db.root())?,
             collection,
         };
@@ -362,16 +377,18 @@ impl TrackService {
 }
 
 pub fn validate_music_url(input: &str) -> Result<url::Url> {
-    if url::Url::parse(input.trim())
+    let host = url::Url::parse(input.trim())
         .ok()
         .and_then(|u| u.host_str().map(str::to_owned))
         .as_deref()
-        == Some("open.spotify.com")
-    {
+        .map(str::to_owned);
+    if host.as_deref().is_some_and(crate::yandex::is_host) {
+        crate::yandex::validate_yandex_url(input)
+    } else if host.as_deref() == Some("open.spotify.com") {
         crate::spotify::validate_spotify_url(input)
     } else {
         validate_youtube_url(input).context(tr(
-            "Вставьте ссылку YouTube или Spotify на трек или открытый плейлист",
+            "Вставьте ссылку YouTube, Spotify или Яндекс Музыки на трек или открытый плейлист",
         ))
     }
 }
@@ -414,6 +431,10 @@ pub struct PlaylistService {
 
 impl PlaylistService {
     pub fn rename_playlist(&self, id: i64, name: &str) -> Result<()> {
+        ensure!(
+            id != crate::favorites::FAVORITES_ID,
+            tr("Избранное — системный плейлист")
+        );
         let name = name.trim();
         ensure!(!name.is_empty(), tr("Введите название плейлиста"));
         ensure!(
@@ -441,6 +462,10 @@ impl PlaylistService {
         self.repository.list_playlists()
     }
     pub fn delete_playlist(&self, id: i64) -> Result<()> {
+        ensure!(
+            id != crate::favorites::FAVORITES_ID,
+            tr("Избранное — системный плейлист")
+        );
         let assets = self.repository.delete(id)?;
         // The transaction has committed before removing generated artwork; never touch audio.
         for relative in assets {
@@ -453,12 +478,21 @@ impl PlaylistService {
         Ok(())
     }
     pub fn add_track(&self, playlist_id: i64, track_id: i64) -> Result<bool> {
+        if playlist_id == crate::favorites::FAVORITES_ID {
+            return crate::favorites::FavoritesService::new(self.db.clone()).set(track_id, true);
+        }
         self.repository.add_track(playlist_id, track_id)
     }
     pub fn remove_track(&self, playlist_id: i64, track_id: i64) -> Result<bool> {
+        if playlist_id == crate::favorites::FAVORITES_ID {
+            return crate::favorites::FavoritesService::new(self.db.clone()).set(track_id, false);
+        }
         self.repository.remove_track(playlist_id, track_id)
     }
     pub fn list_playlist_tracks(&self, playlist_id: i64) -> Result<Vec<Track>> {
+        if playlist_id == crate::favorites::FAVORITES_ID {
+            return crate::favorites::FavoritesService::new(self.db.clone()).tracks();
+        }
         self.repository.list_playlist_tracks(playlist_id)
     }
 }

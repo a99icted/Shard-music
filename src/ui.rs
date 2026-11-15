@@ -5,6 +5,8 @@ mod components;
 mod home;
 #[path = "ui/settings.rs"]
 mod settings;
+#[path = "ui/synchronization.rs"]
+mod synchronization;
 
 use crate::{
     input::TextInput,
@@ -63,6 +65,10 @@ pub fn bind_keys(cx: &mut App) {
 
 #[derive(Clone)]
 enum Modal {
+    SyncHelp,
+    SyncOptions(shard::sync::SyncSelection),
+    SyncOptionsHelp(shard::sync::SyncSelection),
+    SyncDuplicates,
     PlaylistActions(Playlist),
     EditTrack(Track),
     PlaylistAppearance(i64),
@@ -79,6 +85,16 @@ pub(crate) struct UiTheme(pub Theme);
 impl Global for UiTheme {}
 
 pub struct MusicApp {
+    favorites_service: shard::favorites::FavoritesService,
+    favorite_ids: std::collections::HashSet<i64>,
+    favorite_pending: std::collections::HashSet<i64>,
+    sync_service: Option<shard::sync::SyncService>,
+    sync_status: shard::sync::SyncStatus,
+    sync_input: Entity<TextInput>,
+    sync_qr: Option<PathBuf>,
+    sync_job_generation: u64,
+    sync_duplicate_requests: Option<mpsc::Receiver<synchronization::DuplicateRequest>>,
+    sync_duplicate_prompt: Option<synchronization::DuplicatePrompt>,
     settings_open: bool,
     settings_category: settings::SettingsCategory,
     playlist_name: Entity<TextInput>,
@@ -155,6 +171,13 @@ impl MusicApp {
             self.busy = Some(progress.message());
         }
         self.collection_dirty = true;
+        if let Some(playlist) = self
+            .playlists
+            .iter_mut()
+            .find(|p| p.id == shard::favorites::FAVORITES_ID)
+        {
+            playlist.name = tr("Избранное").into();
+        }
         self.save_preferences();
         #[cfg(windows)]
         crate::desktop::refresh_language(cx);
@@ -194,6 +217,16 @@ impl MusicApp {
         cx.set_global(UiTheme(preferences.theme));
         window.focus(&focus);
         let mut app = Self {
+            favorites_service: shard::favorites::FavoritesService::new(db.clone()),
+            favorite_ids: Default::default(),
+            favorite_pending: Default::default(),
+            sync_service: None,
+            sync_status: Default::default(),
+            sync_input: cx.new(|cx| TextInput::new(tr("Вставьте код другого устройства"), cx)),
+            sync_qr: None,
+            sync_job_generation: 0,
+            sync_duplicate_requests: None,
+            sync_duplicate_prompt: None,
             settings_open: false,
             settings_category: settings::SettingsCategory::Customization,
             playlist_name: cx.new(|cx| TextInput::new(tr("Название плейлиста"), cx)),
@@ -257,13 +290,26 @@ impl MusicApp {
             app.commit_playlist_name(cx)
         })
         .detach();
+        app.save_preferences();
+        if app.preferences.sync_enabled {
+            app.start_sync(cx);
+        }
         app.refresh(cx);
         cx.on_release(|app, _| {
+            if let Some(path) = app.sync_qr.take() {
+                let _ = std::fs::remove_file(path);
+            }
+            if let Some(service) = &app.sync_service {
+                service.stop();
+            }
             app.player.flush_and_wait();
             app.preferences_writer.flush_and_wait();
         })
         .detach();
         cx.on_app_quit(|app, cx| {
+            if let Some(service) = &app.sync_service {
+                service.stop();
+            }
             app.commit_playlist_name(cx);
             if let Some(cancel) = &app.download_cancel {
                 cancel.store(true, Ordering::Relaxed);
@@ -298,6 +344,27 @@ impl MusicApp {
                     .update_in(cx, |app, window, cx| {
                         let snapshot = app.player.progress();
                         let mut changed = last_player != Some(snapshot);
+                        if let Some(request) = app
+                            .sync_duplicate_requests
+                            .as_ref()
+                            .and_then(|receiver| receiver.try_recv().ok())
+                        {
+                            app.sync_duplicate_prompt =
+                                Some(synchronization::DuplicatePrompt::new(request));
+                            app.open_modal(Modal::SyncDuplicates, window, cx);
+                            changed = true;
+                        }
+                        if let Some(service) = &app.sync_service {
+                            let status = service.status();
+                            if status != app.sync_status {
+                                let refresh = status.revision != app.sync_status.revision;
+                                app.sync_status = status;
+                                changed = true;
+                                if refresh {
+                                    app.refresh(cx);
+                                }
+                            }
+                        }
                         last_player = Some(snapshot);
                         if window.is_window_active()
                             && app.home_open
@@ -355,6 +422,7 @@ impl MusicApp {
         let tracks = self.tracks_service.clone();
         let playlists = self.playlists_service.clone();
         let backgrounds = self.background_service.clone();
+        let favorites = self.favorites_service.clone();
         let task = cx.background_executor().spawn(async move {
             let tracks = tracks.list_tracks()?;
             let visible = match selected {
@@ -363,9 +431,14 @@ impl MusicApp {
             };
             Ok::<_, anyhow::Error>((
                 tracks,
-                playlists.list_playlists()?,
+                {
+                    let mut lists = playlists.list_playlists()?;
+                    lists.insert(0, favorites.playlist()?);
+                    lists
+                },
                 visible,
                 backgrounds.list()?,
+                favorites.ids()?,
             ))
         });
         cx.spawn(async move |this, cx| {
@@ -376,7 +449,8 @@ impl MusicApp {
                     return;
                 }
                 match result {
-                    Ok((tracks, playlists, visible, backgrounds)) => {
+                    Ok((tracks, playlists, visible, backgrounds, favorite_ids)) => {
+                        app.favorite_ids = favorite_ids;
                         app.track_index = tracks
                             .iter()
                             .enumerate()
@@ -553,6 +627,13 @@ impl MusicApp {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(Modal::SyncOptionsHelp(selection)) = self.modal.clone() {
+            self.open_modal(Modal::SyncOptions(selection), window, cx);
+            return;
+        }
+        if matches!(self.modal, Some(Modal::SyncDuplicates)) {
+            self.cancel_sync_duplicates();
+        }
         self.commit_playlist_name(cx);
         if self.modal.take().is_none() && self.preferences.queue_visible {
             self.toggle_queue(cx);
@@ -1206,6 +1287,7 @@ impl MusicApp {
                             )
                     })),
             )
+            .children(self.sync_progress_card())
             .children(self.download_card(cx))
             .child(
                 self.button("open-settings", tr("⚙  Настройки"), self.settings_open)
@@ -1235,6 +1317,26 @@ impl MusicApp {
         let colors = self.colors();
         let modal = self.modal.clone()?;
         let (eyebrow, title, description) = match &modal {
+            Modal::SyncOptions(selection) => (
+                tr("ПЕРЕДАЧА МУЗЫКИ"),
+                tr("Настройки синхронизации"),
+                self.sync_selection_title(*selection),
+            ),
+            Modal::SyncOptionsHelp(_) => (
+                tr("ПОМОЩЬ"),
+                tr("Как обрабатывать дубликаты"),
+                tr("Выберите, что делать с треками, которые уже есть на другом устройстве.").into(),
+            ),
+            Modal::SyncDuplicates => (
+                tr("ПЕРЕДАЧА МУЗЫКИ"),
+                tr("Найдены дубликаты"),
+                tr("Выберите: использовать имеющийся трек или передать ещё одну копию.").into(),
+            ),
+            Modal::SyncHelp => (
+                tr("ПОМОЩЬ"),
+                tr("Как работает синхронизация"),
+                tr("Передавайте музыку между устройствами в одной локальной сети.").to_owned(),
+            ),
             Modal::PlaylistActions(playlist) => (
                 tr("УПРАВЛЕНИЕ ПЛЕЙЛИСТОМ"),
                 tr("Действия с плейлистом"),
@@ -1262,7 +1364,7 @@ impl MusicApp {
             Modal::Import => (
                 tr("ПОПОЛНИТЬ КОЛЛЕКЦИЮ"),
                 tr("Добавить музыку"),
-                "YouTube, Spotify track, album or playlist".to_owned(),
+                tr("YouTube, Spotify или Яндекс Музыка: трек, альбом или плейлист").to_owned(),
             ),
             Modal::CreatePlaylist => (
                 tr("НОВАЯ ПОДБОРКА"),
@@ -1326,6 +1428,41 @@ impl MusicApp {
                             cx.listener(|app, _, window, cx| app.dismiss(&Dismiss, window, cx)),
                         )
                     }))
+                    .children(match &modal {
+                        Modal::SyncOptions(selection) => {
+                            let selection = *selection;
+                            Some(
+                                div()
+                                    .id("sync-options-help")
+                                    .size_7()
+                                    .mr_2()
+                                    .flex_shrink_0()
+                                    .rounded_full()
+                                    .border_1()
+                                    .border_color(rgb(colors.muted))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .text_sm()
+                                    .text_color(rgb(colors.muted))
+                                    .cursor_pointer()
+                                    .child("?")
+                                    .hover(move |style| {
+                                        style
+                                            .bg(rgb(colors.button_hover))
+                                            .text_color(rgb(colors.accent))
+                                    })
+                                    .on_click(cx.listener(move |app, _, window, cx| {
+                                        app.open_modal(
+                                            Modal::SyncOptionsHelp(selection),
+                                            window,
+                                            cx,
+                                        )
+                                    })),
+                            )
+                        }
+                        _ => None,
+                    })
                     .child(self.icon_button("close-modal", "✕", false).on_click(
                         cx.listener(|app, _, window, cx| app.dismiss(&Dismiss, window, cx)),
                     )),
@@ -1343,6 +1480,28 @@ impl MusicApp {
                     .child(description),
             );
         match modal {
+            Modal::SyncOptions(selection) => {
+                card = card.child(self.sync_options_view(selection, cx));
+            }
+            Modal::SyncOptionsHelp(selection) => {
+                card = card.child(self.sync_options_help()).child(
+                    self.button("back-sync-options", tr("Понятно"), true)
+                        .on_click(cx.listener(move |app, _, window, cx| {
+                            app.open_modal(Modal::SyncOptions(selection), window, cx)
+                        })),
+                );
+            }
+            Modal::SyncDuplicates => {
+                card = card.child(self.sync_duplicates_view(cx));
+            }
+            Modal::SyncHelp => {
+                card = card.child(self.sync_help()).child(
+                    self.button("close-sync-help", tr("Понятно"), true)
+                        .on_click(
+                            cx.listener(|app, _, window, cx| app.dismiss(&Dismiss, window, cx)),
+                        ),
+                );
+            }
             Modal::PlaylistActions(playlist) => {
                 let id = playlist.id;
                 card = card
@@ -1352,13 +1511,25 @@ impl MusicApp {
                                 app.open_modal(Modal::PickTracks(id), window, cx)
                             })),
                     )
-                    .child(
+                    .children((id != shard::favorites::FAVORITES_ID).then(|| {
                         self.button("menu-delete-playlist", tr("Удалить плейлист"), false)
                             .text_color(rgb(0xf1aaa0))
                             .on_click(cx.listener(move |app, _, window, cx| {
                                 app.open_modal(Modal::DeletePlaylist(playlist.clone()), window, cx)
+                            }))
+                    }));
+                if self.sync_service.is_some() {
+                    card = card.child(
+                        self.button("sync-playlist", tr("Синхронизировать плейлист"), false)
+                            .on_click(cx.listener(move |app, _, window, cx| {
+                                app.request_sync(
+                                    shard::sync::SyncSelection::Playlist(id),
+                                    window,
+                                    cx,
+                                )
                             })),
                     );
+                }
             }
             Modal::EditTrack(_) => {
                 card = card
@@ -1457,7 +1628,7 @@ impl MusicApp {
                         cx.listener(|app, _, window, cx| app.submit(&Submit, window, cx)),
                     ))
                     .child(div().text_xs().text_color(rgb(colors.muted)).child(
-                        tr("Плейлист сохранится в приложении. Треки Spotify ищутся на YouTube по названию и исполнителю."),
+                        tr("Плейлист сохранится в приложении. Треки Spotify и Яндекс Музыки ищутся на YouTube по названию и исполнителю."),
                     ));
             }
             Modal::CreatePlaylist => {
@@ -1555,6 +1726,7 @@ impl MusicApp {
                 let queued = track.clone();
                 let add = track.clone();
                 let remove = track.clone();
+                let sync_track = track.id;
                 let delete = track;
                 card = card
                     .child(
@@ -1577,6 +1749,18 @@ impl MusicApp {
                                 app.open_modal(Modal::AddToPlaylist(add.clone()), window, cx)
                             })),
                     );
+                if self.sync_service.is_some() {
+                    card = card.child(
+                        self.button("sync-track", tr("Синхронизировать трек"), false)
+                            .on_click(cx.listener(move |app, _, window, cx| {
+                                app.request_sync(
+                                    shard::sync::SyncSelection::Track(sync_track),
+                                    window,
+                                    cx,
+                                )
+                            })),
+                    );
+                }
                 if self.selected_playlist.is_some() {
                     card = card.child(
                         self.button(

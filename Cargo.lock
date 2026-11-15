@@ -2850,6 +2850,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "if-addrs"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0a05c691e1fae256cf7013d99dad472dc52d5543322761f83ec8d47eab40d2b"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "image"
 version = "0.25.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4338,6 +4348,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+dependencies = [
+ "image",
+]
+
+[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5268,15 +5287,17 @@ dependencies = [
 
 [[package]]
 name = "shard"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
  "directories",
  "embed-resource",
  "gpui",
+ "if-addrs",
  "image",
  "lofty",
+ "qrcode",
  "rand 0.9.5",
  "raw-window-handle",
  "resvg",
@@ -5285,6 +5306,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "unicode-segmentation",
  "ureq",

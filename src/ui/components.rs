@@ -57,6 +57,13 @@ impl MusicApp {
                             .into_any_element()
                     }),
             )
+        } else if playlist.id == shard::favorites::FAVORITES_ID {
+            cover.flex().items_center().justify_center().child(
+                svg()
+                    .path("icons/heart.svg")
+                    .size(px(size * 0.52))
+                    .text_color(rgb(colors.accent)),
+            )
         } else {
             cover
                 .flex()
@@ -111,7 +118,9 @@ impl MusicApp {
                 .cursor_pointer()
                 .child(self.playlist_artwork(playlist, cover_size))
                 .on_click(cx.listener(move |app, _, window, cx| {
-                    app.open_modal(Modal::PlaylistAppearance(id), window, cx)
+                    if id != shard::favorites::FAVORITES_ID {
+                        app.open_modal(Modal::PlaylistAppearance(id), window, cx);
+                    }
                 }))
         } else {
             cover.child(
@@ -184,12 +193,16 @@ impl MusicApp {
                                 duration / 60_000
                             )),
                     )
-                    .children((playlist.is_some() && !dense).then(|| {
-                        div()
-                            .text_xs()
-                            .text_color(rgba((heading_color << 8) | 0x99))
-                            .child(tr("Нажмите на обложку, чтобы изменить оформление"))
-                    })),
+                    .children(
+                        (playlist.is_some_and(|p| p.id != shard::favorites::FAVORITES_ID)
+                            && !dense)
+                            .then(|| {
+                                div()
+                                    .text_xs()
+                                    .text_color(rgba((heading_color << 8) | 0x99))
+                                    .child(tr("Нажмите на обложку, чтобы изменить оформление"))
+                            }),
+                    ),
             )
             .children(playlist.map(|playlist| {
                 let id = playlist.id;
@@ -198,12 +211,12 @@ impl MusicApp {
                     .flex()
                     .gap_2()
                     .items_center()
-                    .child(
+                    .children((id != shard::favorites::FAVORITES_ID).then(|| {
                         self.icon_button("playlist-appearance", "✎", false)
                             .on_click(cx.listener(move |app, _, window, cx| {
                                 app.open_modal(Modal::PlaylistAppearance(id), window, cx)
-                            })),
-                    )
+                            }))
+                    }))
                     .child(
                         self.icon_button("playlist-menu", "⋯", false)
                             .on_click(cx.listener(move |app, _, window, cx| {
@@ -211,6 +224,18 @@ impl MusicApp {
                             })),
                     )
             }))
+            .children(
+                (playlist.is_none() && self.sync_service.is_some()).then(|| {
+                    self.button(
+                        "sync-library-header",
+                        tr("Синхронизировать все треки"),
+                        false,
+                    )
+                    .on_click(cx.listener(|app, _, window, cx| {
+                        app.request_sync(shard::sync::SyncSelection::Library, window, cx)
+                    }))
+                }),
+            )
             .into_any_element()
     }
 
@@ -408,7 +433,7 @@ impl MusicApp {
         let id = track.id;
         let clicked = track.clone();
         let menu = track.clone();
-        let add = track.clone();
+        let favorite = self.favorite_ids.contains(&id);
         div()
             .id(("track", id as u64))
             .w_full()
@@ -460,10 +485,33 @@ impl MusicApp {
                     .child(format_duration(track.duration_ms)),
             )
             .child(
-                self.icon_button(("add-track", id as u64), "+", false)
-                    .on_click(cx.listener(move |app, _, window, cx| {
+                div()
+                    .id(("favorite-track", id as u64))
+                    .size_8()
+                    .flex_shrink_0()
+                    .rounded_lg()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .hover(move |style| style.bg(rgb(colors.button_hover)))
+                    .child(
+                        svg()
+                            .path(if favorite {
+                                "icons/heart.svg"
+                            } else {
+                                "icons/heart-outline.svg"
+                            })
+                            .size_5()
+                            .text_color(rgb(if favorite {
+                                colors.accent
+                            } else {
+                                colors.muted
+                            })),
+                    )
+                    .on_click(cx.listener(move |app, _, _, cx| {
                         cx.stop_propagation();
-                        app.open_modal(Modal::AddToPlaylist(add.clone()), window, cx);
+                        app.toggle_favorite(id, cx);
                     })),
             )
             .child(

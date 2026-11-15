@@ -377,6 +377,178 @@ pub fn tr(text: &str) -> &str {
         "Оттенок" => "Hue",
         "Насыщенность" => "Saturation",
         "Яркость" => "Lightness",
+        "Избранное" => "Favorites",
+        "Избранное — системный плейлист" => {
+            "Favorites is a system playlist"
+        }
+        "Вставьте код другого устройства" => {
+            "Paste the other device’s code"
+        }
+        "Устройства подключены" => "Devices connected",
+        "Передача завершена" => "Transfer complete",
+        "Синхронизация" => "Synchronization",
+        "Синхронизация по локальной сети" => {
+            "Local network synchronization"
+        }
+        "Подключите два устройства к одной сети. Передавайте выбранные треки и плейлисты через меню ⋯. Музыка сохраняется на принимающем устройстве." => {
+            "Connect two devices to the same network. Send selected tracks and playlists through the ⋯ menu. Music is saved on the receiving device."
+        }
+        "Выключить синхронизацию" => "Turn off synchronization",
+        "Включить синхронизацию" => "Turn on synchronization",
+        "Это устройство" => "This device",
+        "Скопировать код подключения" => "Copy connection code",
+        "QR-код содержит тот же код подключения и подготовлен для будущего мобильного клиента. Код меняется при повторном включении синхронизации." => {
+            "The QR code contains the same connection code for a future mobile client. Turning synchronization on again generates a new code."
+        }
+        "Подключить устройство" => "Connect device",
+        "Подключено" => "Connected",
+        "Ожидание подключения устройства" => {
+            "Waiting for a device to connect"
+        }
+        "Передача запускается вручную. Полученные треки добавляются без удаления музыки на другом устройстве. Для подключения может потребоваться разрешить Shard в брандмауэре Windows для частной сети." => {
+            "Transfers start manually. Received tracks are added without deleting music on either device. You may need to allow Shard through Windows Firewall on a private network."
+        }
+        "Ошибка синхронизации" => "Synchronization error",
+        "Получение музыки" => "Receiving music",
+        "Отправка музыки" => "Sending music",
+        "Подготовка передачи…" => "Preparing transfer…",
+        "Синхронизировать плейлист" => "Synchronize playlist",
+        "Синхронизировать трек" => "Synchronize track",
+        "YouTube, Spotify или Яндекс Музыка: трек, альбом или плейлист" => {
+            "YouTube, Spotify or Yandex Music: track, album or playlist"
+        }
+        "Плейлист сохранится в приложении. Треки Spotify и Яндекс Музыки ищутся на YouTube по названию и исполнителю." => {
+            "The playlist is saved in the app. Spotify and Yandex Music tracks are matched on YouTube by title and artist."
+        }
+        "Создайте плейлист или добавьте его по ссылке YouTube, Spotify или Яндекс Музыки." => {
+            "Create a playlist or import one from YouTube, Spotify or Yandex Music."
+        }
+        "Вставьте ссылку YouTube, Spotify или Яндекс Музыки на трек или открытый плейлист" => {
+            "Paste a YouTube, Spotify or Yandex Music track or public playlist link"
+        }
+        "Вставьте HTTPS-ссылку Яндекс Музыки" => {
+            "Paste an HTTPS Yandex Music link"
+        }
+        "Нужна ссылка music.yandex.ru на трек, альбом или открытый плейлист" => {
+            "Use a music.yandex.ru track, album or public playlist link"
+        }
+        "Некорректная ссылка Яндекс Музыки" => {
+            "Invalid Yandex Music link"
+        }
+        "Не удалось получить открытые метаданные Яндекс Музыки" => {
+            "Could not retrieve public Yandex Music metadata"
+        }
+        "Коллекция Яндекс Музыки закрыта или недоступна" => {
+            "Yandex Music collection is private or unavailable"
+        }
+        "Некорректный ответ Яндекс Музыки" => {
+            "Invalid Yandex Music response"
+        }
+        "Яндекс Музыка не предоставила все треки плейлиста" => {
+            "Yandex Music did not provide all playlist tracks"
+        }
+        "Трек без названия" => "Track has no title",
+        "Трек без исполнителя" => "Track has no artist",
+        "Яндекс Музыка вернула неполные метаданные трека" => {
+            "Yandex Music returned incomplete track metadata"
+        }
+        "В Яндекс Музыке нет доступных треков" => {
+            "No available Yandex Music tracks"
+        }
+        "Код подключения" => "Connection code",
+        "Код подключения скопирован" => "Connection code copied",
+        "ПОМОЩЬ" => "HELP",
+        "Как работает синхронизация" => "How synchronization works",
+        "Передавайте музыку между устройствами в одной локальной сети." => {
+            "Transfer music between devices on the same local network."
+        }
+        "Понятно" => "Got it",
+        "Включена" => "On",
+        "Выключена" => "Off",
+        "Включите синхронизацию" => "Turn on synchronization",
+        "На обоих устройствах откройте «Настройки → Синхронизация» и включите тумблер. Устройства должны быть подключены к одной сети Wi-Fi или локальной сети." => {
+            "Open Settings → Synchronization on both devices and turn on the switch. Both devices must be connected to the same Wi-Fi or local network."
+        }
+        "Соедините устройства" => "Connect the devices",
+        "Нажмите иконку копирования справа от кода подключения на одном устройстве. Вставьте код в поле на другом устройстве и нажмите «Подключить устройство». Достаточно ввести код на одном из двух клиентов." => {
+            "Click the copy icon next to the connection code on one device. Paste it into the field on the other device and click Connect device. You only need to enter the code on one of the two clients."
+        }
+        "Выберите музыку для передачи" => "Choose music to send",
+        "Откройте меню ⋯ у трека или в шапке плейлиста и выберите «Синхронизировать трек» или «Синхронизировать плейлист». Так можно передать и «Избранное». Прогресс передачи отображается на обоих устройствах." => {
+            "Open the ⋯ menu for a track or in a playlist header and choose Synchronize track or Synchronize playlist. You can send Favorites too. Transfer progress appears on both devices."
+        }
+        "Слушайте на другом устройстве" => "Listen on the other device",
+        "Аудиофайлы сохранятся в библиотеке получателя вместе с названиями, исполнителями и отметками избранного. При повторной отправке плейлиста добавятся новые треки. Для других совпадений можно выбрать пропуск или дополнительную копию. После обрыва повторите отправку, чтобы продолжить. Удаление музыки на одном устройстве не удаляет её на другом." => {
+            "Audio files are saved in the receiving device’s library with titles, artists and favorite marks. Sending a playlist again adds new tracks. For other matches, you can skip them or send another copy. Repeat an interrupted transfer to resume it. Deleting music on one device does not delete it on the other."
+        }
+        "QR-код предназначен для будущего мобильного приложения. После перезапуска синхронизации код меняется: устройства нужно подключить заново. Обложки, фоны и настройки пока не передаются." => {
+            "The QR code is for a future mobile app. Restarting synchronization changes the code, so you need to reconnect the devices. Covers, backgrounds and settings are not transferred yet."
+        }
+        "Передача отменена" => "Transfer cancelled",
+        "Предупреждать о дубликатах" => "Warn about duplicates",
+        "Показать найденные совпадения перед передачей." => {
+            "Show detected matches before transferring."
+        }
+        "Игнорировать дубликаты" => "Ignore duplicates",
+        "Использовать уже имеющиеся треки, не создавая новые копии." => {
+            "Reuse existing tracks without creating new copies."
+        }
+        "При совпадении вы сможете пропустить трек или передать копию. Решение можно применить ко всем совпадениям." => {
+            "For each match, you can skip the track or send a copy. You can apply your choice to all matches."
+        }
+        "Совпадения будут пропущены без предупреждения. В плейлист добавятся уже имеющиеся треки." => {
+            "Matches will be skipped without a warning. Existing tracks will be added to the playlist."
+        }
+        "Предупреждения выключены: найденные дубликаты будут переданы как новые копии." => {
+            "Warnings are off: detected duplicates will be transferred as new copies."
+        }
+        "Уже синхронизированные треки повторно не копируются. После обрыва повторите отправку — передача продолжится с сохранённого места." => {
+            "Previously synchronized tracks are reused. Repeat an interrupted transfer to resume from the saved position."
+        }
+        "Начать синхронизацию" => "Start synchronization",
+        "Если включено, передача остановится перед отправкой совпадений и спросит, что делать. Можно решить для каждого трека отдельно или включить «Применить ко всем найденным дубликатам»." => {
+            "When enabled, the transfer pauses before sending matches and asks what to do. Decide for each track or enable Apply to all detected duplicates."
+        }
+        "Если включено, дубликаты пропускаются: в плейлисте используется трек из библиотеки получателя. Если выключено, можно передать дополнительную копию. При включённых предупреждениях вы подтверждаете решение; без предупреждений оно применяется автоматически." => {
+            "When enabled, duplicates are skipped: the playlist uses a track from the receiver's library. When disabled, you can send an additional copy. With warnings on, you confirm the choice; without warnings it is applied automatically."
+        }
+        "По умолчанию предупреждения включены, а игнорирование выключено. Само совпадение не запрещает отправку: вы всегда можете выбрать «Передать копию»." => {
+            "By default, warnings are on and ignoring is off. A match does not block sending: you can always choose Send a copy."
+        }
+        "Совпадения проверяются по содержимому файла, ссылке на источник и метаданным. Уже синхронизированные треки обновляемого плейлиста переиспользуются автоматически. Обрыв связи не стирает полученные данные — повторная отправка продолжится с места остановки." => {
+            "Matches are checked by file contents, source link and metadata. Previously synchronized tracks in an updated playlist are reused automatically. A disconnection preserves received data, so another attempt resumes from the saved position."
+        }
+        "Найден файл с тем же содержимым." => {
+            "A file with identical contents was found."
+        }
+        "Найден трек с той же ссылкой на источник." => {
+            "A track with the same source link was found."
+        }
+        "Совпадают название, исполнитель и длительность. Аудиофайлы могут отличаться." => {
+            "Title, artist and duration match. The audio files may differ."
+        }
+        "Применить ко всем найденным дубликатам" => {
+            "Apply to all detected duplicates"
+        }
+        "Выключите, чтобы решить для каждого трека отдельно." => {
+            "Turn off to decide for each track separately."
+        }
+        "Передать копии" => "Send copies",
+        "Передать копию" => "Send a copy",
+        "Пропустить дубликаты" => "Skip duplicates",
+        "Пропустить дубликат" => "Skip duplicate",
+        "Отменить передачу" => "Cancel transfer",
+        "Синхронизировать все треки" => "Synchronize all tracks",
+        "ПЕРЕДАЧА МУЗЫКИ" => "MUSIC TRANSFER",
+        "Настройки синхронизации" => "Synchronization options",
+        "Как обрабатывать дубликаты" => "How to handle duplicates",
+        "Выберите, что делать с треками, которые уже есть на другом устройстве." => {
+            "Choose what to do with tracks that already exist on the other device."
+        }
+        "Найдены дубликаты" => "Duplicates found",
+        "Выберите: использовать имеющийся трек или передать ещё одну копию." => {
+            "Choose whether to use an existing track or send another copy."
+        }
         _ => text,
     }
 }
