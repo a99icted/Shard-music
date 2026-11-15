@@ -46,6 +46,15 @@ Spotify и Яндекс Музыка используются для получ�
 
 ## Сборка из исходников
 
+### Android
+
+Мобильный клиент находится в отдельной папке [`mobile/`](mobile/README.md).
+Он использует общую Rust-библиотеку Shard, нативный интерфейс Android и Media3.
+Инструкция сборки APK, перенос функций и меры экономии батареи описаны в
+[mobile/README.md](mobile/README.md).
+
+### Windows
+
 Нужны [Rust stable](https://rustup.rs/) с MSVC toolchain и [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) с компонентами **Desktop development with C++** и **Windows SDK**. Для загрузки музыки установите [Node.js LTS](https://nodejs.org/) или [Deno](https://deno.com/).
 
 ```powershell

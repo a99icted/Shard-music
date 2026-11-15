@@ -165,7 +165,7 @@ fn normalized(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn select_search_results(
+pub(crate) fn select_search_results(
     json: &[u8],
     title: &str,
     artist: &str,

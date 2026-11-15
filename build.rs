@@ -1,8 +1,13 @@
+#[cfg(feature = "desktop")]
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
 
+#[cfg(not(feature = "desktop"))]
+fn main() {}
+
+#[cfg(feature = "desktop")]
 fn main() {
     println!("cargo:rerun-if-changed=assets/shard.svg");
     println!("cargo:rerun-if-changed=build.rs");
@@ -59,6 +64,7 @@ fn main() {
     }
 }
 
+#[cfg(feature = "desktop")]
 fn make_icon(out: &Path, name: &str, svg: &str) -> PathBuf {
     let tree = resvg::usvg::Tree::from_str(svg, &resvg::usvg::Options::default()).unwrap();
     let sizes = [16u32, 24, 32, 48, 64, 128, 256];

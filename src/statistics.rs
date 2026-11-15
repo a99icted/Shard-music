@@ -7,14 +7,14 @@ pub struct StatisticsService {
     db: Database,
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct ListeningSummary {
     pub month_ms: i64,
     pub year_ms: i64,
     pub top: Vec<TopTrack>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
 pub struct TopTrack {
     pub id: i64,
     pub title: String,

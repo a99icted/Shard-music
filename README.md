@@ -53,6 +53,15 @@ protocol version 2. See [docs/LAN_SYNC.md](docs/LAN_SYNC.md) for details and lim
 
 ## Build from source
 
+### Android
+
+The Android application lives in [`mobile/`](mobile/README.md). It shares Shard's
+Rust services and LAN protocol with the desktop app and uses native Android
+Compose / Media3 for the interface and playback. See the mobile README for APK
+build instructions, feature coverage, and battery usage measures.
+
+### Windows
+
 Requires [Rust stable](https://rustup.rs/) with the MSVC toolchain and [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++** and **Windows SDK**. For downloads, install [Node.js LTS](https://nodejs.org/) or [Deno](https://deno.com/).
 
 ```powershell

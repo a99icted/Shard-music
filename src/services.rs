@@ -111,6 +111,27 @@ impl TrackService {
         self.import_file(path, None, None)
     }
 
+    /// Platform download adapters supply a completed file, preserving the same
+    /// metadata validation and atomic library import as the desktop downloader.
+    pub fn import_download(
+        &self,
+        path: &Path,
+        source: &str,
+        title: Option<String>,
+        artist: Option<String>,
+    ) -> Result<Track> {
+        let source = validate_music_url(source)?;
+        self.import_file(
+            path,
+            Some(source.to_string()),
+            Some(DownloadInfo {
+                track: title,
+                artist,
+                ..Default::default()
+            }),
+        )
+    }
+
     pub fn update_metadata(&self, id: i64, title: &str, artist: &str) -> Result<Track> {
         let title = title.trim();
         let artist = artist.trim();

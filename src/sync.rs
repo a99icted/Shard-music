@@ -373,7 +373,11 @@ impl SyncService {
                         Ok(_) => {}
                         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                             drop(inner);
-                            std::thread::park_timeout(Duration::from_millis(50));
+                            // Android only listens in explicit foreground sessions. A slower
+                            // accept retry also avoids twenty idle CPU wakeups per second.
+                            std::thread::park_timeout(Duration::from_millis(
+                                if cfg!(target_os = "android") { 500 } else { 50 },
+                            ));
                         }
                         Err(_) => break,
                     }

@@ -6,6 +6,7 @@ pub mod db;
 pub mod download_tools;
 pub mod favorites;
 pub mod i18n;
+pub mod mobile;
 pub mod models;
 mod music_metadata;
 pub mod preferences;

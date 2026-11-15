@@ -1,0 +1,5 @@
+-keep class music.shard.mobile.NativeBridge { *; }
+-keepclasseswithmembernames class * { native <methods>; }
+-keep class com.yausername.youtubedl_android.mapper.** { *; }
+-keep class com.fasterxml.jackson.** { *; }
+-dontwarn org.slf4j.impl.**

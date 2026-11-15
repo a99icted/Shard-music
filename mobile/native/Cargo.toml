@@ -1,0 +1,23 @@
+[package]
+name = "shard-mobile"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "shard_mobile"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+shard = { path = "../..", default-features = false }
+jni = "0.21.1"
+serde_json = "1"
+
+[patch.crates-io]
+gpui = { path = "../../vendor/gpui" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = "s"
+strip = true
