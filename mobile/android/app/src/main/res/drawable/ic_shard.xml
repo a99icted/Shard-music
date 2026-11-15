@@ -1,4 +1,15 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#101412" android:pathData="M0,0h108v108h-108z" />
-    <path android:fillColor="#B5ED80" android:pathData="M56,15L25,56L48,52L42,94L83,42L60,47Z" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="256" android:viewportHeight="256">
+    <!-- Vector version of assets/shard.svg, keeping the desktop brand. -->
+    <path android:fillColor="#101412" android:pathData="M0,0h256v256h-256z" />
+    <path android:fillColor="#080b12" android:pathData="M26,126L91,46Q120,17 153,34L209,63Q227,74 235,107L242,143Q246,165 229,187L195,220Q181,232 155,234L72,229Q46,227 31,209L15,181Q4,157 26,126Z" />
+    <path android:fillColor="#272c38" android:pathData="M30,130L96,51Q121,27 150,41L205,69Q221,78 229,110L235,144Q238,162 222,182L190,214Q178,225 154,227L73,222Q51,220 38,204L22,178Q14,158 30,130Z" />
+    <path android:fillColor="#ad79f4" android:pathData="M96,51Q121,27 150,41L170,51L148,77L93,99L57,143L51,193L37,205L23,178L47,151L82,107Z" />
+    <path android:fillColor="#171d28" android:pathData="M57,143L93,99L148,77L178,99L161,156L90,201L51,193Z" />
+    <path android:fillColor="#333744" android:fillAlpha="0.7" android:pathData="M93,99L148,77L172,95L162,116L140,143L90,178L54,193L58,145Z" />
+    <path android:fillColor="#1a202a" android:pathData="M170,51L205,69Q221,78 229,110L210,113L154,77Z" />
+    <path android:fillColor="#80e4e3" android:pathData="M148,77L178,99L210,113L229,110L235,144L224,123L208,118L175,103L146,83L93,103L59,145L51,193L55,142L91,95Z" />
+    <path android:fillColor="#1c1e30" android:pathData="M178,99L208,118L224,162L184,185L161,156Z" />
+    <path android:fillColor="#0c1118" android:pathData="M161,156L184,185L222,182L190,214Q178,225 154,227L73,222L51,193L90,201Z" />
+    <path android:fillColor="#80e4e3" android:pathData="M224,162L184,189L160,224L181,184Z" />
+    <path android:fillColor="#ad79f4" android:fillAlpha="0.7" android:pathData="M90,201L161,156L125,185Z" />
 </vector>

@@ -1042,7 +1042,23 @@ mod tests {
                 .write_all(if corrupt { &[0; 20] } else { &[0; 5] })
                 .unwrap();
             stream.shutdown(std::net::Shutdown::Write).unwrap();
-            assert!(read_json::<Reply>(&mut stream).unwrap().check().is_err());
+            // Unix may reset an aborted frame before a structured error reply
+            // reaches the sender. Both are rejection; a timeout is not.
+            match read_json::<Reply>(&mut stream) {
+                Ok(reply) => assert!(reply.check().is_err()),
+                Err(error) => assert!(
+                    error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|io| matches!(
+                            io.kind(),
+                            std::io::ErrorKind::ConnectionReset
+                                | std::io::ErrorKind::ConnectionAborted
+                                | std::io::ErrorKind::UnexpectedEof
+                                | std::io::ErrorKind::BrokenPipe
+                        )),
+                    "Unexpected transfer failure: {error:#}"
+                ),
+            }
             assert!(
                 TrackService::new(db.clone())
                     .list_tracks()
