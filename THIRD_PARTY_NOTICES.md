@@ -48,6 +48,8 @@ these retain their own licenses and are not covered by Shard's MIT License.
 - QuickJS: https://bellard.org/quickjs/ (MIT)
 - FFmpeg build instructions: https://github.com/yausername/youtubedl-android/blob/master/BUILD_FFMPEG.md
 - Gradle Wrapper and Gradle: https://github.com/gradle/gradle (Apache-2.0)
+- Local QR scanner: https://github.com/journeyapps/zxing-android-embedded (Apache-2.0), version 4.3.0
+- QR decoding: https://github.com/zxing/zxing (Apache-2.0), core version 3.5.3
 
 Preserve notices and corresponding-source obligations of the exact Android
 native artifacts when redistributing an APK. Debug APKs and third-party native

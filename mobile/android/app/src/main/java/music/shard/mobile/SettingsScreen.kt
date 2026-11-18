@@ -4,6 +4,11 @@ package music.shard.mobile
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -126,9 +131,25 @@ import org.json.JSONObject
             Text(model.downloadMessage.ifEmpty { t("Активных загрузок нет", "No active downloads") })
             if (model.downloadActive) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                OutlinedButton(onClick = { WorkManager.getInstance(context).cancelUniqueWork(DownloadWorker.CHAIN) }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text(t("Остановить загрузки", "Cancel downloads")) }
+                OutlinedButton(onClick = { model.cancelDownloads() }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text(t("Остановить загрузки", "Cancel downloads")) }
             }
             if (model.downloadDetails.isNotBlank()) OutlinedButton(onClick = { details = true }, Modifier.fillMaxWidth()) { Text(t("Технические подробности", "Technical details")) }
+            if (!model.downloadActive && (model.downloadMessage.isNotBlank() || model.downloadDetails.isNotBlank()))
+                OutlinedButton(onClick = { details = false; model.dismissDownloadReport() }, Modifier.fillMaxWidth()) { Text(t("Убрать отчёт", "Dismiss report")) }
+        } }
+        if (model.failedDownloads.isNotEmpty()) item { SettingsCard(t("Не удалось скачать", "Failed downloads"),
+            t("Повторятся только ошибки, в конце текущей очереди", "Retry only failures at the end of the current queue"), Icons.Default.Refresh) {
+            model.failedDownloads.forEach { failed ->
+                Column {
+                    Text(failed.title, maxLines = 2)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { notify(); model.retryDownload(failed.id) }, Modifier.weight(1f)) {
+                            Text(t("Повторить ошибки", "Retry failures") + ": ${failed.count}")
+                        }
+                        IconButton(onClick = { model.forgetDownload(failed.id) }) { Icon(Icons.Default.Close, t("Убрать из списка ошибок", "Remove from failed downloads")) }
+                    }
+                }
+            }
         } }
     }
     if (details) AlertDialog(onDismissRequest = { details = false }, title = { Text(t("Отчёт загрузчика", "Downloader report")) }, text = {
@@ -142,6 +163,17 @@ import org.json.JSONObject
     val context = LocalContext.current
     var code by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf(snapshot.preferences.optString("sync_device_name")) }
+    var scanner by remember { mutableStateOf(false) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) scanner = true else model.message = t("Для сканирования QR разрешите доступ к камере. Код можно вставить вручную.", "Allow camera access to scan a QR code, or paste the code manually.")
+    }
+    if (scanner) QrScannerDialog(t, onDismiss = { scanner = false }) { value ->
+        scanner = false
+        model.perform {
+            code = Core.call("sync_validate_code", "code" to value) as String
+            Core.call("sync_pair", "code" to code)
+        }
+    }
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { SettingsCard(t("Устройства рядом", "Nearby devices"), t("Телефон и компьютер в одной Wi-Fi сети", "Phone and computer on the same Wi-Fi"), Icons.Default.Devices) {
             SettingsToggle(t("Локальная синхронизация", "LAN sync"), checked = sync.optBoolean("enabled")) { if (it) { notify(); SyncService.start(context) } else SyncService.stop(context) }
@@ -149,6 +181,10 @@ import org.json.JSONObject
         } }
         if (sync.optBoolean("enabled")) {
             item { SettingsCard(t("Подключить устройство", "Connect a device"), icon = Icons.Default.Link) {
+                Button(onClick = {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) scanner = true
+                    else cameraPermission.launch(Manifest.permission.CAMERA)
+                }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text(t("Сканировать QR с компьютера", "Scan QR from computer")) }
                 OutlinedButton(onClick = { (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Shard", sync.optString("code"))) }, Modifier.fillMaxWidth()) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text(t("Скопировать мой код", "Copy my code")) }
                 OutlinedTextField(code, { code = it }, label = { Text(t("Код с другого устройства", "Code from the other device")) }, modifier = Modifier.fillMaxWidth(), maxLines = 4)
                 Button(onClick = { model.command("sync_pair", "code" to code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(t("Подключиться", "Connect")) }

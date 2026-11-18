@@ -3,6 +3,7 @@ pub mod backgrounds;
 #[cfg(feature = "desktop")]
 pub mod branding;
 pub mod db;
+mod download_duplicates;
 pub mod download_tools;
 pub mod favorites;
 pub mod i18n;

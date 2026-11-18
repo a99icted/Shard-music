@@ -13,7 +13,10 @@ import androidx.media3.session.MediaController
 import androidx.work.WorkManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class LibraryModel(app: Application) : AndroidViewModel(app) {
@@ -26,6 +29,8 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     var downloadDetails by mutableStateOf(""); private set
     var downloadActive by mutableStateOf(false); private set
     var downloaderVersion by mutableStateOf(""); private set
+    var downloadPending by mutableStateOf<JSONObject?>(null); private set
+    internal var failedDownloads by mutableStateOf(emptyList<FailedDownload>()); private set
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) { playerRevision++ }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) { message = error.localizedMessage }
@@ -34,16 +39,21 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { Core.libraryChanges.collectLatest { refresh() } }
         viewModelScope.launch {
             var finishedCount = -1
-            WorkManager.getInstance(app).getWorkInfosForUniqueWorkFlow(DownloadWorker.CHAIN).collectLatest { jobs ->
+            combine(WorkManager.getInstance(app).getWorkInfosForUniqueWorkFlow(DownloadWorker.CHAIN), DownloadStore.changes) { jobs, _ -> jobs }.collectLatest { jobs ->
                 val active = jobs.firstOrNull { it.state == androidx.work.WorkInfo.State.RUNNING }
                     ?: jobs.firstOrNull { !it.state.isFinished }
                 val preferences = app.getSharedPreferences("downloader", android.content.Context.MODE_PRIVATE)
                 downloadActive = active != null
                 downloadDetails = if (active != null) "" else preferences.getString("details", "").orEmpty()
                 downloaderVersion = preferences.getString("version", "").orEmpty()
+                downloadPending = DownloadStore.pending()
+                failedDownloads = DownloadStore.failures()
                 downloadMessage = active?.progress?.getString("message")
                     ?: if (active != null) {
-                        if (library?.preferences?.optString("language") == "english") "Waiting for network / charging" else "Ожидание сети / зарядки"
+                        val english = library?.preferences?.optString("language") == "english"
+                        if (active.state == androidx.work.WorkInfo.State.RUNNING) {
+                            if (english) "Preparing download…" else "Подготовка загрузки…"
+                        } else if (english) "Waiting for network / charging" else "Ожидание сети / зарядки"
                     }
                     else preferences.getString("report", "").orEmpty()
                 val count = jobs.count { it.state.isFinished }
@@ -69,6 +79,15 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     fun command(op: String, vararg args: Pair<String, Any?>) = perform { Core.call(op, *args) }
     fun preferences(vararg args: Pair<String, Any?>) = command("preferences", "patch" to JSONObject().apply { args.forEach { put(it.first, it.second) } })
     fun toggleFavorite(id: Long) = perform(false) { Core.toggleFavorite(id) }
+    fun dismissDownloadReport() = DownloadStore.dismissReport()
+    fun retryDownload(id: String) = perform(false) { DownloadWorker.enqueuePlan(getApplication(), DownloadStore.retry(id)) }
+    fun resolveDownloads(id: String, copies: Set<Int>) = perform(false) { DownloadWorker.enqueuePlan(getApplication(), DownloadStore.resolve(id, copies)) }
+    fun cancelPendingDownload(id: String) = perform(false) { DownloadStore.cancel(id); DownloadStore.dismissReport() }
+    fun forgetDownload(id: String) = perform(false) { DownloadStore.delete(id) }
+    fun cancelDownloads() = perform(false) {
+        withContext(Dispatchers.IO) { WorkManager.getInstance(getApplication()).cancelUniqueWork(DownloadWorker.CHAIN).result.get() }
+        DownloadStore.cancelActive()
+    }
     fun importFiles(uris: List<Uri>, playlist: Long? = null) = perform {
         val errors = mutableListOf<String>()
         var count = 0

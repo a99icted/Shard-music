@@ -6,7 +6,7 @@ use crate::{
     db::Database,
     favorites::FavoritesService,
     preferences::Preferences,
-    repositories::TrackRepository,
+    repositories::{PlaylistRepository, TrackRepository},
     services::{PlaylistService, TrackService},
     statistics::StatisticsService,
     sync::{DuplicateDecision, DuplicateTrack, SyncOptions, SyncSelection, SyncService},
@@ -113,6 +113,24 @@ impl MobileCore {
         let backgrounds = BackgroundService::new(self.db.clone());
         match text(v, "op")? {
             "snapshot" => return self.snapshot(),
+            "download_duplicates" => {
+                let entries: Vec<crate::download_duplicates::Entry> =
+                    serde_json::from_value(v["entries"].clone())?;
+                let local = tracks
+                    .list_tracks()?
+                    .into_iter()
+                    .filter(|t| tracks.audio_path(t).is_ok_and(|p| p.is_file()))
+                    .collect::<Vec<_>>();
+                return Ok(json!(crate::download_duplicates::inspect(&local, &entries)));
+            }
+            "sync_validate_code" => {
+                crate::sync::PairingCode::parse(text(v, "code")?)?;
+                return Ok(json!(text(v, "code")?.trim()));
+            }
+            "playlist_order" => {
+                let ids: Vec<i64> = serde_json::from_value(v["tracks"].clone())?;
+                PlaylistRepository::new(self.db.clone()).order_tracks(id(v)?, &ids)?;
+            }
             "import" => {
                 let path = self.staged(v)?;
                 let track = if let Some(source) = v["source"].as_str() {
@@ -404,5 +422,80 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn scanned_codes_only_accept_local_shard_pairing() {
+        let root = tempfile::tempdir().unwrap();
+        let core = MobileCore::open(root.path()).unwrap();
+        let code = "shard-sync://192.168.1.4:43567/8e65a36a-696f-4d70-8b63-329292cc9965";
+        assert_eq!(
+            call(&core, json!({"op":"sync_validate_code","code":code})),
+            code
+        );
+        for invalid in [
+            "https://example.com",
+            "shard-sync://8.8.8.8:1234/token",
+            "random QR text",
+        ] {
+            let response: Value = serde_json::from_str(
+                &core.dispatch(&json!({"op":"sync_validate_code","code":invalid}).to_string()),
+            )
+            .unwrap();
+            assert_eq!(response["ok"], false);
+        }
+    }
+
+    #[test]
+    fn download_order_preserves_members_and_ignores_missing_audio_duplicates() {
+        let root = tempfile::tempdir().unwrap();
+        let core = MobileCore::open(root.path()).unwrap();
+        let tracks = TrackRepository::new(core.db.clone());
+        let mut ids = Vec::new();
+        for index in 0..4 {
+            let path = format!("audio/sample-{index}.wav");
+            if index != 3 {
+                std::fs::write(root.path().join(&path), b"fixture").unwrap();
+            }
+            ids.push(
+                tracks
+                    .insert(&crate::models::NewTrack {
+                        title: format!("Track {index}"),
+                        artist: "Artist".into(),
+                        file_path: path,
+                        source_url: Some(format!("https://www.youtube.com/watch?v=video{index}")),
+                        duration_ms: Some(180000),
+                    })
+                    .unwrap()
+                    .id,
+            );
+        }
+        let playlist = call(
+            &core,
+            json!({"op":"playlist_create","name":"Download order"}),
+        );
+        for id in [ids[2], ids[0], ids[1]] {
+            call(&core, json!({"op":"playlist_add","id":playlist,"track":id}));
+        }
+        let request =
+            json!({"op":"playlist_order","id":playlist,"tracks":[ids[0],ids[2],ids[0],-1]});
+        for _ in 0..2 {
+            call(&core, request.clone());
+        }
+        let actual = PlaylistRepository::new(core.db.clone())
+            .list_playlist_tracks(playlist.as_i64().unwrap())
+            .unwrap();
+        assert_eq!(
+            actual.iter().map(|t| t.id).collect::<Vec<_>>(),
+            [ids[0], ids[2], ids[1]]
+        );
+        let duplicates = call(
+            &core,
+            json!({"op":"download_duplicates","entries":[
+                {"url":"https://youtu.be/video0"}, {"url":"https://youtu.be/video3"}
+            ]}),
+        );
+        assert_eq!(duplicates.as_array().unwrap().len(), 1);
+        assert_eq!(duplicates[0]["existing_id"], ids[0]);
     }
 }

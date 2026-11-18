@@ -128,6 +128,9 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
                             else Icon(Icons.Default.Download, null, Modifier.size(20.dp))
                             Text(model.downloadMessage, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
                             Icon(Icons.Default.ChevronRight, t("Открыть загрузки", "Open downloads"))
+                            if (!model.downloadActive) IconButton(onClick = { model.dismissDownloadReport() }) {
+                                Icon(Icons.Default.Close, t("Убрать отчёт", "Dismiss report"))
+                            }
                         }
                     }
                     MiniPlayer(model, t, !showPlayer, onNotify) { showPlayer = true }
@@ -232,6 +235,11 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
         model.message?.let { message -> AlertDialog(onDismissRequest = { model.message = null }, title = { Text("Shard") }, text = { LazyColumn { item { Text(message) } } }, confirmButton = { Button(onClick = { model.message = null }) { Text("OK") } }) }
         if (showPlayer) PlayerSheet(model, t, onNotify) { showPlayer = false }
         val duplicates = sync.optJSONArray("duplicates")
+        model.downloadPending?.takeIf { duplicates == null || duplicates.length() == 0 }?.let { pending ->
+            DownloadDuplicatesDialog(pending, t,
+                apply = { model.resolveDownloads(pending.getString("id"), it) },
+                cancel = { model.cancelPendingDownload(pending.getString("id")) })
+        }
         var duplicateCopies by remember(duplicates?.toString()) { mutableStateOf(emptySet<Int>()) }
         if (duplicates != null && duplicates.length() > 0) AlertDialog(onDismissRequest = { SyncService.stop(context) },
             title = { Text(t("Найдены дубликаты", "Duplicates found")) },

@@ -28,6 +28,7 @@ mod transfer;
 pub use transfer::{
     DuplicateDecision, DuplicateKind, DuplicateTrack, SyncOptions, SyncSelection, TransferReport,
 };
+pub(crate) use transfer::{durations_match, metadata_key};
 
 const VERSION: u32 = 2;
 const MAX_JSON: usize = 8 * 1024 * 1024;
@@ -57,12 +58,12 @@ struct Peer {
     name: String,
 }
 #[derive(Clone, Debug)]
-struct PairingCode {
+pub(crate) struct PairingCode {
     address: SocketAddr,
     token: String,
 }
 impl PairingCode {
-    fn parse(input: &str) -> Result<Self> {
+    pub(crate) fn parse(input: &str) -> Result<Self> {
         let url = url::Url::parse(input.trim()).context("Некорректный код подключения")?;
         ensure!(
             url.scheme() == "shard-sync"

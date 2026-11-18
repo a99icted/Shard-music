@@ -12,8 +12,8 @@ android {
         applicationId = "music.shard.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.1.5"
+        versionCode = 7
+        versionName = "0.1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.3")
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     testImplementation("junit:junit:4.13.2")

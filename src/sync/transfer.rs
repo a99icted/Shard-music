@@ -731,7 +731,7 @@ fn fingerprint(manifest: &Manifest) -> Result<String> {
         Sha256::digest(serde_json::to_vec(&stable)?)
     ))
 }
-fn metadata_key(title: &str, artist: &str) -> Option<String> {
+pub(crate) fn metadata_key(title: &str, artist: &str) -> Option<String> {
     fn normalize(text: &str) -> String {
         text.split_whitespace()
             .collect::<Vec<_>>()
@@ -746,7 +746,7 @@ fn metadata_key(title: &str, artist: &str) -> Option<String> {
         Some(format!("{title}\0{artist}"))
     }
 }
-fn durations_match(a: Option<i64>, b: Option<i64>) -> bool {
+pub(crate) fn durations_match(a: Option<i64>, b: Option<i64>) -> bool {
     match (a, b) {
         (Some(a), Some(b)) => a.abs_diff(b) <= 3000,
         _ => false,
