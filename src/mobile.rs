@@ -433,6 +433,14 @@ mod tests {
             call(&core, json!({"op":"sync_validate_code","code":code})),
             code
         );
+        let hotspot_code = format!("{code}?alt=192.168.137.1");
+        assert_eq!(
+            call(
+                &core,
+                json!({"op":"sync_validate_code","code":hotspot_code})
+            ),
+            hotspot_code
+        );
         for invalid in [
             "https://example.com",
             "shard-sync://8.8.8.8:1234/token",

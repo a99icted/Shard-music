@@ -34,6 +34,7 @@ const VERSION: u32 = 2;
 const MAX_JSON: usize = 8 * 1024 * 1024;
 const MAX_FILE: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_TOTAL: u64 = 32 * 1024 * 1024 * 1024;
+const MAX_ADDRESSES: usize = 8;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransferProgress {
@@ -61,6 +62,7 @@ struct Peer {
 pub(crate) struct PairingCode {
     address: SocketAddr,
     token: String,
+    alternatives: Vec<SocketAddr>,
 }
 impl PairingCode {
     pub(crate) fn parse(input: &str) -> Result<Self> {
@@ -69,7 +71,6 @@ impl PairingCode {
             url.scheme() == "shard-sync"
                 && url.username().is_empty()
                 && url.password().is_none()
-                && url.query().is_none()
                 && url.fragment().is_none(),
             "Некорректный код подключения"
         );
@@ -89,9 +90,30 @@ impl PairingCode {
         );
         let port = url.port().context("В коде нет порта устройства")?;
         ensure!(port > 0, "Некорректный порт устройства");
+        let address = SocketAddr::new(ip, port);
+        let mut alternatives = Vec::new();
+        for (key, value) in url.query_pairs() {
+            ensure!(key == "alt", "Некорректный код подключения");
+            let ip: IpAddr = value.parse().context("Некорректный адрес устройства")?;
+            ensure!(
+                local_address(ip),
+                "Подключение разрешено только в локальной сети"
+            );
+            let candidate = SocketAddr::new(ip, port);
+            ensure!(
+                candidate != address && !alternatives.contains(&candidate),
+                "Повторяющийся адрес устройства"
+            );
+            alternatives.push(candidate);
+            ensure!(
+                alternatives.len() < MAX_ADDRESSES,
+                "Слишком много адресов устройства"
+            );
+        }
         Ok(Self {
-            address: SocketAddr::new(ip, port),
+            address,
             token: token.into(),
+            alternatives,
         })
     }
 }
@@ -316,10 +338,16 @@ impl SyncService {
         let listener = TcpListener::bind(bind).context("Не удалось включить синхронизацию")?;
         listener.set_nonblocking(true)?;
         let token = Uuid::new_v4().to_string();
-        let code = format!(
-            "shard-sync://{}/{token}",
-            SocketAddr::new(advertised, listener.local_addr()?.port())
-        );
+        let address = SocketAddr::new(advertised, listener.local_addr()?.port());
+        let alternatives = if bind.ip().is_unspecified() {
+            lan_interfaces()
+                .into_iter()
+                .map(|interface| interface.ip())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let code = pairing_code(address, &token, alternatives);
         let service = Self {
             inner: Arc::new(Inner {
                 db,
@@ -421,10 +449,26 @@ impl SyncService {
         })
     }
     fn connect(&self, target: &PairingCode) -> Result<CancellableStream> {
-        self.active()?;
-        let stream = TcpStream::connect_timeout(&target.address, Duration::from_secs(8))
-            .context("Устройство недоступно. Проверьте локальную сеть и брандмауэр")?;
-        self.socket(stream)
+        let interfaces = lan_interfaces();
+        let mut addresses = vec![target.address];
+        addresses.extend(&target.alternatives);
+        // Prefer a directly attached subnet, including a tethering interface,
+        // over an uplink reachable only through the default internet route.
+        addresses.sort_by_key(|address| {
+            !interfaces
+                .iter()
+                .any(|interface| same_subnet(address.ip(), interface))
+        });
+        let timeout = Duration::from_secs(8) / addresses.len() as u32;
+        let mut last_error = None;
+        for address in addresses {
+            self.active()?;
+            match TcpStream::connect_timeout(&address, timeout) {
+                Ok(stream) => return self.socket(stream),
+                Err(error) => last_error = Some(error),
+            }
+        }
+        Err(last_error.unwrap()).context("Устройство недоступно. Проверьте локальную сеть, VPN и брандмауэр. После смены сети выключите и включите синхронизацию и отсканируйте новый QR")
     }
     pub fn code(&self) -> &str {
         &self.inner.code
@@ -446,12 +490,14 @@ impl SyncService {
             .save(path)?;
         Ok(())
     }
-    fn own_peer(&self) -> Peer {
-        Peer {
+    fn own_peer_on(&self, stream: &CancellableStream) -> Result<Peer> {
+        let own = PairingCode::parse(self.code())?;
+        let address = SocketAddr::new(stream.stream.local_addr()?.ip(), own.address.port());
+        Ok(Peer {
             device: self.inner.device.clone(),
-            code: self.code().into(),
+            code: pairing_code(address, &self.inner.token, Vec::new()),
             name: self.inner.name.clone(),
-        }
+        })
     }
     fn set_peer(&self, peer: Peer) {
         self.inner.status.lock().unwrap().peer = Some(peer.name.clone());
@@ -484,15 +530,19 @@ impl SyncService {
             "Это код текущего устройства"
         );
         let mut stream = self.connect(&target)?;
+        let address = stream.stream.peer_addr()?;
+        let peer = self.own_peer_on(&stream)?;
         write_json(
             &mut stream,
             &Request::Pair {
                 version: VERSION,
-                token: target.token,
-                peer: self.own_peer(),
+                token: target.token.clone(),
+                peer,
             },
         )?;
-        let reply = read_json::<Reply>(&mut stream)?.check()?;
+        let reply = read_json::<Reply>(&mut stream)
+            .context("Соединение прервано до получения ответа. Проверьте VPN и обновите Shard на обоих устройствах")?
+            .check()?;
         let peer = reply
             .peer
             .context("Устройство не вернуло код подключения")?;
@@ -502,7 +552,7 @@ impl SyncService {
         );
         let returned = PairingCode::parse(&peer.code)?;
         ensure!(
-            returned.address == target.address && returned.token == PairingCode::parse(code)?.token,
+            returned.address == address && returned.token == target.token,
             "Устройство вернуло другой код подключения"
         );
         self.active()?;
@@ -534,10 +584,11 @@ impl SyncService {
                         && peer.name.chars().count() <= 100,
                     "Некорректный адрес устройства"
                 );
+                let own_peer = self.own_peer_on(stream)?;
                 write_json(
                     stream,
                     &Reply {
-                        peer: Some(self.own_peer()),
+                        peer: Some(own_peer),
                         ..Reply::ok()
                     },
                 )?;
@@ -596,6 +647,44 @@ impl SyncService {
     }
 }
 
+fn pairing_code(address: SocketAddr, token: &str, alternatives: Vec<IpAddr>) -> String {
+    let mut url = url::Url::parse(&format!("shard-sync://{address}/{token}")).unwrap();
+    let mut seen = vec![address.ip()];
+    for ip in alternatives {
+        if seen.len() == MAX_ADDRESSES {
+            break;
+        }
+        if !seen.contains(&ip) {
+            url.query_pairs_mut().append_pair("alt", &ip.to_string());
+            seen.push(ip);
+        }
+    }
+    url.into()
+}
+
+fn lan_interfaces() -> Vec<if_addrs::Interface> {
+    let mut interfaces: Vec<_> = if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|interface| {
+            interface.is_oper_up()
+                && matches!(interface.ip(), IpAddr::V4(ip) if ip.is_private() || shared_address(ip))
+        })
+        .collect();
+    interfaces.sort_by_key(|interface| (interface.is_p2p(), interface.ip()));
+    interfaces
+}
+
+fn same_subnet(ip: IpAddr, interface: &if_addrs::Interface) -> bool {
+    match (ip, &interface.addr) {
+        (IpAddr::V4(ip), if_addrs::IfAddr::V4(local)) => {
+            let mask = u32::from(local.netmask);
+            (u32::from(ip) & mask) == (u32::from(local.ip) & mask)
+        }
+        _ => false,
+    }
+}
+
 fn local_ip() -> IpAddr {
     // UDP connect selects a route without sending packets or depending on a public service.
     let route = UdpSocket::bind("0.0.0.0:0")
@@ -611,20 +700,10 @@ fn local_ip() -> IpAddr {
     }
     // VPN routing may select a tunnel with a globally scoped address. Find an
     // actual local interface instead of silently advertising 127.0.0.1.
-    let mut candidates: Vec<_> = if_addrs::get_if_addrs()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|interface| match interface.ip() {
-            IpAddr::V4(ip) if ip.is_private() || shared_address(ip) => Some(ip),
-            _ => None,
-        })
-        .collect();
-    candidates.sort_by_key(|ip| (!ip.is_private(), ip.octets()));
-    candidates
+    lan_interfaces()
         .first()
-        .copied()
-        .unwrap_or(Ipv4Addr::LOCALHOST)
-        .into()
+        .map(if_addrs::Interface::ip)
+        .unwrap_or(Ipv4Addr::LOCALHOST.into())
 }
 fn hash_file(path: &Path, mut active: impl FnMut() -> Result<()>) -> Result<String> {
     let mut file = File::open(path)?;
@@ -892,9 +971,87 @@ mod tests {
             format!("https://192.168.1.4:1234/{token}"),
             "shard-sync://192.168.1.4:1234/wrong".into(),
             format!("shard-sync://user@192.168.1.4:1234/{token}"),
+            format!("shard-sync://192.168.1.4:1234/{token}?alt=8.8.8.8"),
+            format!("shard-sync://192.168.1.4:1234/{token}?alt=example.com"),
+            format!("shard-sync://192.168.1.4:1234/{token}?alt=192.168.1.4"),
+            format!("shard-sync://192.168.1.4:1234/{token}?alt=192.168.137.1&alt=192.168.137.1"),
+            format!("shard-sync://192.168.1.4:1234/{token}?redirect=192.168.137.1"),
+            format!(
+                "shard-sync://192.168.1.4:1234/{token}{}",
+                (1..=MAX_ADDRESSES)
+                    .map(|i| format!("{}alt=10.0.0.{i}", if i == 1 { "?" } else { "&" }))
+                    .collect::<String>()
+            ),
         ] {
             assert!(PairingCode::parse(&code).is_err());
         }
+        let code = pairing_code(
+            "100.83.69.1:43567".parse().unwrap(),
+            &token.to_string(),
+            vec!["192.168.137.1".parse().unwrap()],
+        );
+        let parsed = PairingCode::parse(&code).unwrap();
+        assert_eq!(parsed.address, "100.83.69.1:43567".parse().unwrap());
+        assert_eq!(
+            parsed.alternatives,
+            vec!["192.168.137.1:43567".parse::<SocketAddr>().unwrap()]
+        );
+    }
+    #[test]
+    fn hotspot_pairing_uses_reachable_qr_address_and_connection_interface_both_directions() {
+        let phone_root = tempfile::tempdir().unwrap();
+        let pc_root = tempfile::tempdir().unwrap();
+        let phone_db = Database::open(phone_root.path()).unwrap();
+        let pc_db = Database::open(pc_root.path()).unwrap();
+        // Model defaults pointing to mobile data / the internet uplink rather
+        // than the LAN carrying the connection. Only loopback is actually bound.
+        let phone = SyncService::listen(
+            phone_db.clone(),
+            Uuid::new_v4().to_string(),
+            "Phone".into(),
+            "127.0.0.1:0".parse().unwrap(),
+            "100.83.69.1".parse().unwrap(),
+        )
+        .unwrap();
+        let pc = SyncService::listen(
+            pc_db.clone(),
+            Uuid::new_v4().to_string(),
+            "PC".into(),
+            "127.0.0.1:0".parse().unwrap(),
+            "192.168.137.1".parse().unwrap(),
+        )
+        .unwrap();
+        let port = PairingCode::parse(pc.code()).unwrap().address.port();
+        // The first QR candidate cannot accept connections; the second can.
+        let code = pairing_code(
+            SocketAddr::new("127.0.0.2".parse().unwrap(), port),
+            &pc.inner.token,
+            vec![Ipv4Addr::LOCALHOST.into()],
+        );
+        phone.pair(&code).unwrap();
+        for (service, expected_peer) in [(&phone, "PC"), (&pc, "Phone")] {
+            assert_eq!(service.status().peer.as_deref(), Some(expected_peer));
+            let peer = service.inner.peer.lock().unwrap().clone().unwrap();
+            let code = PairingCode::parse(&peer.code).unwrap();
+            assert_eq!(code.address.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+            assert!(code.alternatives.is_empty());
+        }
+        let song = phone_root.path().join("phone.wav");
+        wav(&song, 1);
+        let track = TrackService::new(phone_db.clone())
+            .import_local(&song)
+            .unwrap();
+        phone.send_track(track.id).unwrap();
+        let song = pc_root.path().join("pc.wav");
+        wav(&song, 2);
+        let track = TrackService::new(pc_db.clone())
+            .import_local(&song)
+            .unwrap();
+        pc.send_track(track.id).unwrap();
+        assert_eq!(TrackService::new(phone_db).list_tracks().unwrap().len(), 2);
+        assert_eq!(TrackService::new(pc_db).list_tracks().unwrap().len(), 2);
+        phone.stop();
+        pc.stop();
     }
     #[test]
     fn transfers_playlist_audio_favorites_and_progress_both_directions_without_duplicates() {

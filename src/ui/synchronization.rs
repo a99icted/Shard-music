@@ -496,7 +496,7 @@ impl MusicApp {
                         ),
                 )
                 .children(self.sync_qr.as_ref().map(|path| div().p_3().bg(rgb(0xffffff)).rounded_lg().w(px(224.)).child(img(path.clone()).size(px(200.)))))
-                .child(div().text_xs().text_color(rgb(colors.muted)).child(tr("QR-код содержит тот же код подключения и подготовлен для будущего мобильного клиента. Код меняется при повторном включении синхронизации.")))
+                .child(div().text_xs().text_color(rgb(colors.muted)).child(tr("Сканируйте QR в Shard на телефоне. Подключение работает через роутер или точку доступа телефона/ПК. После смены сети включите синхронизацию заново и отсканируйте новый QR.")))
                 .child(self.sync_input.clone())
                 .child(self.button("pair-sync", tr("Подключить устройство"), true).on_click(cx.listener(|app, _, _, cx| app.pair_sync(cx))))
                 .child(div().text_sm().text_color(rgb(colors.accent)).child(self.sync_status.peer.as_ref().map(|peer| format!("{}: {peer}", tr("Подключено"))).unwrap_or_else(|| tr("Ожидание подключения устройства").into())))
@@ -526,7 +526,7 @@ impl MusicApp {
                     .child(div().size_6().flex_shrink_0().rounded_full().bg(rgb(colors.button)).text_color(rgb(colors.accent)).text_xs().flex().items_center().justify_center().child(number))
                     .child(div().flex_1().min_w_0().text_sm().child(div().font_weight(FontWeight::SEMIBOLD).child(title)).child(div().mt_1().text_color(rgb(colors.muted)).child(text)))
             }))
-            .child(div().text_xs().text_color(rgb(colors.muted)).child(tr("QR-код предназначен для будущего мобильного приложения. После перезапуска синхронизации код меняется: устройства нужно подключить заново. Обложки, фоны и настройки пока не передаются.")))
+            .child(div().text_xs().text_color(rgb(colors.muted)).child(tr("QR содержит локальные адреса устройства. После смены сети или включения точки доступа перезапустите синхронизацию и отсканируйте новый QR. Обложки, фоны и настройки пока не передаются.")))
             .into_any_element()
     }
     pub(super) fn sync_progress_card(&self) -> Option<AnyElement> {

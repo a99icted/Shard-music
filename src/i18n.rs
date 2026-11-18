@@ -20,6 +20,12 @@ pub fn tr(text: &str) -> &str {
         return text;
     }
     match text {
+        "Сканируйте QR в Shard на телефоне. Подключение работает через роутер или точку доступа телефона/ПК. После смены сети включите синхронизацию заново и отсканируйте новый QR." => {
+            "Scan the QR in Shard on your phone. Connect through a router or a phone/PC hotspot. After changing networks, restart sync and scan the new QR."
+        }
+        "QR содержит локальные адреса устройства. После смены сети или включения точки доступа перезапустите синхронизацию и отсканируйте новый QR. Обложки, фоны и настройки пока не передаются." => {
+            "The QR contains the device's local addresses. After changing networks or enabling a hotspot, restart sync and scan the new QR. Covers, backgrounds and settings are not transferred yet."
+        }
         "Поиск по названию или исполнителю" => {
             "Search by title or artist"
         }

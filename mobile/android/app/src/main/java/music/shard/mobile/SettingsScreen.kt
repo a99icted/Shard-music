@@ -175,9 +175,10 @@ import org.json.JSONObject
         }
     }
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { SettingsCard(t("Устройства рядом", "Nearby devices"), t("Телефон и компьютер в одной Wi-Fi сети", "Phone and computer on the same Wi-Fi"), Icons.Default.Devices) {
+        item { SettingsCard(t("Устройства рядом", "Nearby devices"), t("Одна сеть Wi-Fi или точка доступа телефона/ПК", "Same Wi-Fi network or a phone/PC hotspot"), Icons.Default.Devices) {
             SettingsToggle(t("Локальная синхронизация", "LAN sync"), checked = sync.optBoolean("enabled")) { if (it) { notify(); SyncService.start(context) } else SyncService.stop(context) }
             Text(t("В фоне соединение закроется после передачи для экономии батареи.", "In the background, the connection closes after the transfer to save battery."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("После смены сети или включения точки доступа перезапустите синхронизацию на обоих устройствах и отсканируйте новый QR с ПК.", "After changing networks or enabling a hotspot, restart sync on both devices and scan the new QR from your PC."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } }
         if (sync.optBoolean("enabled")) {
             item { SettingsCard(t("Подключить устройство", "Connect a device"), icon = Icons.Default.Link) {

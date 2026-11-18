@@ -1,7 +1,7 @@
 # Local network transfer protocol, version 2
 
-Implementation: `src/sync.rs` and `src/sync/transfer.rs`. This is the foundation
-for a future mobile client. Transfers start manually from a track or playlist
+Implementation: `src/sync.rs` and `src/sync/transfer.rs`, shared with Android.
+Transfers start manually from a track or playlist
 menu, or **Synchronize all tracks** in Settings → Synchronization or the library
 header. One paired peer and one operation are supported per client at a time.
 Both clients must support version 2; version 1 clients must be updated.
@@ -19,12 +19,29 @@ shard-sync://192.168.1.10:49152/xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 The port is allocated dynamically. The UUID in the path is a random session
 secret. Enabling synchronization again rotates the port and secret; peers must
 reconnect. The stable device UUID is stored in preferences. The desktop displays
-the QR for a future mobile scanner; it does not use a camera.
+the QR for the Android scanner; the desktop does not use a camera.
 
 Only private, shared (RFC 6598), loopback and link-local IP addresses are accepted.
-The address comes from the system route, with an interface fallback when a VPN
-hides it. Both devices must be reachable; private-network firewall access may
-need to be allowed. VPNs and multiple adapters can affect routing.
+The primary address comes from the system route, with an interface fallback when
+a VPN hides it. Desktop 0.1.5 / Android 0.1.7 also advertise operational local IPv4
+interfaces in repeated `alt` query parameters (eight total addresses maximum):
+
+```text
+shard-sync://100.83.69.1:49152/xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx?alt=192.168.137.1
+```
+
+Each alternative must be a unique local IP literal; it shares the primary port
+and session secret. Unknown query parameters, public addresses, duplicates and
+more than eight addresses are rejected. Codes without alternatives remain valid.
+Older apps reject codes containing alternatives, so update both apps.
+
+The client prefers candidates on directly attached IPv4 subnets and tries the
+others if TCP connection fails, sharing an eight-second timeout budget. This
+supports router Wi-Fi, a Windows mobile hotspot and Android tethering. Interfaces
+are captured when synchronization starts: after changing networks or enabling a
+hotspot, restart synchronization on both devices and scan the new QR.
+Both devices must be reachable; private-network firewall access may need to be
+allowed. A VPN can still block LAN access and must allow local traffic.
 
 Transport is TCP with session-secret authentication and SHA-256 integrity checks.
 It is **not encrypted** and is intended for a trusted LAN. TLS with pinned device
@@ -64,6 +81,13 @@ stable identity, so either can send. Inspection and transfer requests require
 the target token, paired source IP and matching manifest device UUID. Failures
 return `ok: false` with an `error` string. Irrelevant reply fields serialize with
 empty/default values.
+
+Both pairing peers advertise the local IP of the established TCP connection,
+with their listener port and session secret, instead of reusing an internet-route
+address. The initiator verifies the reply against the TCP destination that
+actually connected, including when it used an `alt` address. Paired peers retain
+these single addresses for transfers in either direction; the source-IP and
+credential checks are unchanged.
 
 ## Manifest and duplicate inspection
 
