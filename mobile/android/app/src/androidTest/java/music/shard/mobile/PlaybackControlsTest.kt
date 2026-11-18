@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.media.session.MediaController as SystemMediaController
 import android.media.session.MediaSession as SystemMediaSession
+import android.media.session.PlaybackState
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -108,6 +109,25 @@ class PlaybackControlsTest {
             await { var playing = false; instrumentation.runOnMainSync { playing = controller!!.isPlaying }; playing }
             system!!.transportControls.skipToNext()
             await { var index = 0; instrumentation.runOnMainSync { index = controller!!.currentMediaItemIndex }; index == 1 }
+            await { system!!.playbackState!!.actions and PlaybackState.ACTION_SKIP_TO_PREVIOUS != 0L }
+            system!!.transportControls.skipToPrevious()
+            await { var index = -1; instrumentation.runOnMainSync { index = controller!!.currentMediaItemIndex }; index == 0 }
+            // Lock-screen controls use the same platform token, even with Activity stopped.
+            system!!.transportControls.skipToNext()
+            await { var index = -1; instrumentation.runOnMainSync { index = controller!!.currentMediaItemIndex }; index == 1 }
+            try {
+                shell("input keyevent KEYCODE_SLEEP")
+                await { !Core.context.getSystemService(android.os.PowerManager::class.java).isInteractive }
+                system!!.transportControls.skipToPrevious()
+                await { var index = -1; instrumentation.runOnMainSync { index = controller!!.currentMediaItemIndex }; index == 0 }
+                system!!.transportControls.pause()
+                await { var paused = false; instrumentation.runOnMainSync { paused = !controller!!.playWhenReady }; paused }
+                system!!.transportControls.play()
+                await { var playing = false; instrumentation.runOnMainSync { playing = controller!!.isPlaying }; playing }
+            } finally {
+                shell("input keyevent KEYCODE_WAKEUP")
+                shell("wm dismiss-keyguard")
+            }
             system!!.transportControls.sendCustomAction(PlaybackActions.FAVORITE, Bundle.EMPTY)
             await { runBlocking { track.id !in Core.snapshot().favorites } }
             compose.waitUntil(15000) { compose.onAllNodesWithContentDescription("В избранное").fetchSemanticsNodes().isNotEmpty() }
@@ -139,7 +159,7 @@ class PlaybackControlsTest {
             compose.onNodeWithText("Перемешивание: вкл.").performClick()
             await { runBlocking { !Core.snapshot().preferences.optBoolean("shuffle") } }
             // Platform labels follow app changes too.
-            await { system!!.playbackState?.customActions?.lastOrNull()?.name.toString() == "Повтор: выкл." }
+            await { system!!.playbackState?.customActions?.find { it.action == PlaybackActions.REPEAT }?.name.toString() == "Повтор: выкл." }
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             compose.waitUntil(15000) { compose.onAllNodesWithContentDescription("Закрыть плеер").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Закрыть плеер").performClick()
@@ -170,5 +190,11 @@ class PlaybackControlsTest {
             check(SystemClock.elapsedRealtime() < deadline) { "Playback controls did not update" }
             Thread.sleep(50)
         }
+    }
+
+    private fun shell(command: String) {
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        ).use { it.readBytes() }
     }
 }

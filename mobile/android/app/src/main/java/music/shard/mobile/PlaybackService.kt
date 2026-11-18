@@ -11,6 +11,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -46,7 +47,7 @@ internal object PlaybackActions {
     const val FAVORITE = "music.shard.favorite"
     const val SHUFFLE = "music.shard.shuffle"
     const val REPEAT = "music.shard.repeat"
-    val commands = listOf(FAVORITE, SHUFFLE, REPEAT).map { SessionCommand(it, Bundle.EMPTY) }
+    val commands = listOf(FAVORITE, REPEAT, SHUFFLE).map { SessionCommand(it, Bundle.EMPTY) }
 }
 
 fun Track.mediaItem(): MediaItem = MediaItem.Builder().setMediaId(id.toString())
@@ -101,8 +102,12 @@ class PlaybackService : MediaSessionService() {
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true
         ).setHandleAudioBecomingNoisy(true).setWakeMode(C.WAKE_MODE_LOCAL).build()
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-            .setAudioOffloadPreferences(androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
-                .setAudioOffloadMode(androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+            // Offload bypasses the normal PCM mixer. Some device/route combinations
+            // accept the compressed stream and advance the clock without audible output
+            // until a seek recreates AudioTrack. Use the platform decoder + PCM output.
+            // Do not mask this with periodic seeks or restart every track.
+            .setAudioOffloadPreferences(AudioOffloadPreferences.Builder()
+                .setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
                 .build()).build()
         player.addListener(object : Player.Listener {
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -140,15 +145,11 @@ class PlaybackService : MediaSessionService() {
                     val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().apply {
                         PlaybackActions.commands.forEach { add(it) }
                     }.build()
-                    val result = MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands)
-                    // Android 13+ has five media slots. Free the previous-track slot so all
-                    // three explicit controls fit alongside play/pause and next. App/headset
-                    // controllers keep the full transport commands.
-                    if (session.isMediaNotificationController(controller) || controller.packageName == "com.android.systemui") {
-                        result.setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
-                            .remove(Player.COMMAND_SEEK_TO_PREVIOUS).remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM).build())
-                    }
-                    return result.build()
+                    // SystemUI and the lock screen need the same transport permissions as
+                    // the app/headset. Removing previous to fit more custom buttons also
+                    // makes a visible OEM previous button a no-op.
+                    return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                        .setAvailableSessionCommands(commands).build()
                 }
                 override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, command: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
                     when (command.customAction) {
@@ -215,10 +216,10 @@ class PlaybackService : MediaSessionService() {
         session?.setCustomLayout(listOf(
             button(if (favorite) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED,
                 PlaybackActions.FAVORITE, if (favorite) t("Убрать из избранного", "Unlike track") else t("В избранное", "Like track"), 0),
-            button(if (player.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF,
-                PlaybackActions.SHUFFLE, if (player.shuffleModeEnabled) t("Перемешивание: вкл.", "Shuffle: on") else t("Перемешивание: выкл.", "Shuffle: off")),
             button(when (player.repeatMode) { Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL; Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE; else -> CommandButton.ICON_REPEAT_OFF },
-                PlaybackActions.REPEAT, when (player.repeatMode) { Player.REPEAT_MODE_ALL -> t("Повтор: все треки", "Repeat: all"); Player.REPEAT_MODE_ONE -> t("Повтор: один трек", "Repeat: one"); else -> t("Повтор: выкл.", "Repeat: off") })
+                PlaybackActions.REPEAT, when (player.repeatMode) { Player.REPEAT_MODE_ALL -> t("Повтор: все треки", "Repeat: all"); Player.REPEAT_MODE_ONE -> t("Повтор: один трек", "Repeat: one"); else -> t("Повтор: выкл.", "Repeat: off") }),
+            button(if (player.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF,
+                PlaybackActions.SHUFFLE, if (player.shuffleModeEnabled) t("Перемешивание: вкл.", "Shuffle: on") else t("Перемешивание: выкл.", "Shuffle: off"))
         ))
     }
 

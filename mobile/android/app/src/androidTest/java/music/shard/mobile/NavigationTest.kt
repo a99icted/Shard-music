@@ -9,10 +9,55 @@ import org.json.JSONObject
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class NavigationTest {
     @get:Rule val compose = createEmptyComposeRule()
+
+    @Test fun albumHeaderScrollsAwayAndTitleReturnsOnReverseScroll(): Unit = runBlocking {
+        val original = Core.snapshot().preferences.optString("language")
+        Core.call("preferences", "patch" to JSONObject().put("language", "russian"))
+        val name = "Scroll album ${UUID.randomUUID()}"
+        val playlist = (Core.call("playlist_create", "name" to name) as Number).toLong()
+        val directory = File(Core.root, "staging/scroll-${UUID.randomUUID()}").apply { mkdirs() }
+        val tracks = mutableListOf<Long>()
+        try {
+            repeat(24) { index ->
+                val pcm = ByteArray(16000).apply { this[0] = index.toByte(); this[1] = 1 }
+                val wave = File(directory, "$index.wav")
+                wave.writeBytes(ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+                    .put("RIFF".toByteArray()).putInt(36 + pcm.size).put("WAVEfmt ".toByteArray())
+                    .putInt(16).putShort(1).putShort(1).putInt(8000).putInt(16000).putShort(2).putShort(16)
+                    .put("data".toByteArray()).putInt(pcm.size).array() + pcm)
+                val id = (Core.call("import", "path" to wave.absolutePath, "title" to "Scroll track $index") as JSONObject).getLong("id")
+                tracks += id
+                Core.call("playlist_add", "id" to playlist, "track" to id)
+            }
+            ActivityScenario.launch(MainActivity::class.java).use {
+                compose.waitUntil(15000) { compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty() }
+                compose.onNodeWithText(name).performScrollTo().performClick()
+                compose.onNodeWithTag("playlist-header").assertIsDisplayed()
+                repeat(3) { compose.onNodeWithTag("track-list").performTouchInput { swipeUp() } }
+                compose.onNodeWithTag("playlist-header").assertIsNotDisplayed()
+                compose.onNodeWithText("Название или исполнитель").assertIsNotDisplayed()
+                compose.onNodeWithTag("collection-title").assertIsNotDisplayed()
+                compose.onNodeWithTag("track-list").performTouchInput { swipeDown() }
+                compose.onNodeWithTag("collection-title").assertIsDisplayed()
+                compose.onNodeWithTag("track-list").performScrollToIndex(0)
+                compose.onNodeWithTag("playlist-header").assertIsDisplayed()
+                compose.onNodeWithText("Слушать").assertIsDisplayed()
+            }
+        } finally {
+            Core.call("playlist_delete", "id" to playlist)
+            for (id in tracks) Core.call("track_delete", "id" to id)
+            Core.call("preferences", "patch" to JSONObject().put("language", original))
+            directory.deleteRecursively()
+        }
+    }
 
     @Test fun libraryFirstAndSettingsInSeparateTabs() {
         val original = runBlocking { Core.snapshot().preferences.optString("language") }

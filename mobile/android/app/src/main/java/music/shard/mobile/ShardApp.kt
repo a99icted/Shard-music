@@ -34,6 +34,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
@@ -102,14 +104,18 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
             tab == 1 -> t("Настройки", "Settings")
             else -> t("Моя музыка", "Your library")
         }
+        val albumScrollBehavior = if (playlist != null) key(playlist) {
+            TopAppBarDefaults.enterAlwaysScrollBehavior()
+        } else null
         Scaffold(
+            modifier = albumScrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier,
             topBar = {
-                TopAppBar(title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold) },
+                TopAppBar(title = { Text(title, Modifier.testTag("collection-title"), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold) },
                     navigationIcon = { if (playlist != null) IconButton(onClick = { playlist = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, t("Назад", "Back")) } },
                     actions = {
                         if (playlist != null && playlist != -1L) IconButton(onClick = { editPlaylist = snapshot?.playlists?.find { it.id == playlist } }) { Icon(Icons.Default.Edit, t("Оформление плейлиста", "Edit playlist")) }
                         if (tab == 0) FilledTonalIconButton(onClick = { addMusic = true }, modifier = Modifier.padding(end = 16.dp)) { Icon(Icons.Default.Add, t("Добавить музыку", "Add music")) }
-                    })
+                    }, scrollBehavior = albumScrollBehavior)
             },
             bottomBar = {
                 Column {
@@ -150,43 +156,51 @@ fun ShardApp(model: LibraryModel, onNotify: () -> Unit) {
                         val visible = remember(snapshot, scope, query) { snapshot.tracksIn(scope).filter { query.isBlank() || "${it.title} ${it.artist}".contains(query, ignoreCase = true) } }
                         Column {
                             if (playlist == null) LibraryTabs(libraryTab, t) { libraryTab = it; query = "" }
-                            snapshot.playlists.find { it.id == playlist }?.let { p ->
-                                Row(Modifier.fillMaxWidth().background(p.color?.let { Color(it or 0xff000000) } ?: MaterialTheme.colorScheme.surfaceVariant).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (p.cover != null) AsyncImage(File(Core.root, p.cover), t("Обложка", "Cover"), Modifier.size(64.dp), contentScale = ContentScale.Crop)
-                                    else Icon(Icons.Default.Album, null, Modifier.size(48.dp))
-                                    Text(p.name, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.titleLarge, maxLines = 2)
-                                }
-                            }
-                            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true,
-                                placeholder = { Text(t("Название или исполнитель", "Title or artist")) }, leadingIcon = { Icon(Icons.Default.Search, null) })
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Button(onClick = { visible.firstOrNull()?.let { onNotify(); model.play(visible, it.id, false) } }, enabled = visible.isNotEmpty(), modifier = Modifier.weight(1f)) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(t("Слушать", "Play")) }
-                                FilledTonalButton(onClick = { visible.randomOrNull()?.let { onNotify(); model.play(visible, it.id, true) } }, enabled = visible.isNotEmpty()) { Icon(Icons.Default.Shuffle, t("Перемешать", "Shuffle")) }
-                                OutlinedIconButton(onClick = { onNotify(); SyncService.start(context, if (scope == null) "library" else "playlist", scope ?: 0) }) { Icon(Icons.Default.Sync, t("Отправить на устройство", "Send to device")) }
-                            }
-                            Text("${visible.size} ${t("треков", "tracks")}", Modifier.padding(start = 20.dp, bottom = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (visible.isEmpty()) {
-                                Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.Headphones, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Text(t("Ваша музыка. На вашем устройстве.", "Your music. On your device."), Modifier.padding(vertical = 12.dp))
-                                    Text(t("Добавьте файлы, вставьте ссылку или передайте музыку с ПК через синхронизацию.", "Import files, paste a link, or transfer music from your PC using LAN sync."), style = MaterialTheme.typography.bodyMedium)
-                                    FilledTonalButton(onClick = { importer.launch(arrayOf("audio/*", "video/mp4")) }) { Text(t("Выбрать файлы", "Choose files")) }
-                                }
-                            }
-                            LazyColumn(Modifier.weight(1f)) {
-                                items(visible, key = { it.id }) { track ->
-                                    TrackRow(track, track.id in snapshot.favorites, t,
-                                        onPlay = { onNotify(); model.play(visible, track.id) },
-                                        onFavorite = { model.toggleFavorite(track.id) },
-                                        onQueue = { model.controller?.addMediaItem(track.mediaItem()) },
-                                        onEdit = { editTrack = track }, onAdd = { choosePlaylist = track },
-                                        onSend = { onNotify(); SyncService.start(context, "track", track.id) },
-                                        onRemove = if (scope != null) { {
-                                            if (scope == -1L) model.command("favorite", "id" to track.id, "enabled" to false)
-                                            else model.command("playlist_remove", "id" to scope, "track" to track.id)
-                                        } } else null,
-                                        removeLabel = if (scope == -1L) t("Убрать из избранного", "Remove from favorites") else t("Убрать из плейлиста", "Remove from playlist"),
-                                        onDelete = { confirm = t("Удалить трек и его локальный файл?", "Delete the track and its local file?") to { model.deleteTrack(track.id) } })
+                            // The cover, search and playback actions belong to the list so
+                            // they scroll away with the tracks instead of consuming the screen.
+                            key(scope, libraryTab) {
+                                LazyColumn(Modifier.weight(1f).testTag("track-list")) {
+                                    item(key = "collection-header", contentType = "header") {
+                                        Column {
+                                            snapshot.playlists.find { it.id == playlist }?.let { p ->
+                                                Row(Modifier.fillMaxWidth().testTag("playlist-header").background(p.color?.let { Color(it or 0xff000000) } ?: MaterialTheme.colorScheme.surfaceVariant).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    if (p.cover != null) AsyncImage(File(Core.root, p.cover), t("Обложка", "Cover"), Modifier.size(64.dp), contentScale = ContentScale.Crop)
+                                                    else Icon(Icons.Default.Album, null, Modifier.size(48.dp))
+                                                    Text(p.name, Modifier.padding(start = 16.dp), style = MaterialTheme.typography.titleLarge, maxLines = 2)
+                                                }
+                                            }
+                                            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true,
+                                                placeholder = { Text(t("Название или исполнитель", "Title or artist")) }, leadingIcon = { Icon(Icons.Default.Search, null) })
+                                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Button(onClick = { visible.firstOrNull()?.let { onNotify(); model.play(visible, it.id, false) } }, enabled = visible.isNotEmpty(), modifier = Modifier.weight(1f)) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(t("Слушать", "Play")) }
+                                                FilledTonalButton(onClick = { visible.randomOrNull()?.let { onNotify(); model.play(visible, it.id, true) } }, enabled = visible.isNotEmpty()) { Icon(Icons.Default.Shuffle, t("Перемешать", "Shuffle")) }
+                                                OutlinedIconButton(onClick = { onNotify(); SyncService.start(context, if (scope == null) "library" else "playlist", scope ?: 0) }) { Icon(Icons.Default.Sync, t("Отправить на устройство", "Send to device")) }
+                                            }
+                                            Text("${visible.size} ${t("треков", "tracks")}", Modifier.padding(start = 20.dp, bottom = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            if (visible.isEmpty()) {
+                                                Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Icon(Icons.Default.Headphones, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                                    Text(t("Ваша музыка. На вашем устройстве.", "Your music. On your device."), Modifier.padding(vertical = 12.dp))
+                                                    Text(t("Добавьте файлы, вставьте ссылку или передайте музыку с ПК через синхронизацию.", "Import files, paste a link, or transfer music from your PC using LAN sync."), style = MaterialTheme.typography.bodyMedium)
+                                                    FilledTonalButton(onClick = { importer.launch(arrayOf("audio/*", "video/mp4")) }) { Text(t("Выбрать файлы", "Choose files")) }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    items(visible, key = { it.id }, contentType = { "track" }) { track ->
+                                        TrackRow(track, track.id in snapshot.favorites, t,
+                                            onPlay = { onNotify(); model.play(visible, track.id) },
+                                            onFavorite = { model.toggleFavorite(track.id) },
+                                            onQueue = { model.controller?.addMediaItem(track.mediaItem()) },
+                                            onEdit = { editTrack = track }, onAdd = { choosePlaylist = track },
+                                            onSend = { onNotify(); SyncService.start(context, "track", track.id) },
+                                            onRemove = if (scope != null) { {
+                                                if (scope == -1L) model.command("favorite", "id" to track.id, "enabled" to false)
+                                                else model.command("playlist_remove", "id" to scope, "track" to track.id)
+                                            } } else null,
+                                            removeLabel = if (scope == -1L) t("Убрать из избранного", "Remove from favorites") else t("Убрать из плейлиста", "Remove from playlist"),
+                                            onDelete = { confirm = t("Удалить трек и его локальный файл?", "Delete the track and its local file?") to { model.deleteTrack(track.id) } })
+                                    }
                                 }
                             }
                         }
