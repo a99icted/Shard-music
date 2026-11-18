@@ -1,0 +1,6 @@
+R_DEF: Internal format may change without notice
+local
+drawable ic_notification
+drawable ic_shard
+style Theme.Shard
+xml data_extraction_rules

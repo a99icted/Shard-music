@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="music.shard.mobile.DownloadQueueTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-18T10:16:44" hostname="DESKTOP-VNETL3P" time="0.153">
+  <properties/>
+  <testcase name="permanentFailureHasOnlyTwoAttemptsAndDoesNotBlockOthers" classname="music.shard.mobile.DownloadQueueTest" time="0.139"/>
+  <testcase name="failuresMoveBehindEveryFirstAttempt" classname="music.shard.mobile.DownloadQueueTest" time="0.003"/>
+  <testcase name="explicitCopyDownloadsAgainWhileFinishedEntriesSurviveRestart" classname="music.shard.mobile.DownloadQueueTest" time="0.005"/>
+  <testcase name="duplicatesReuseLocalAndEarlierAudioEvenAfterRetry" classname="music.shard.mobile.DownloadQueueTest" time="0.002"/>
+  <testcase name="cancellationStopsImmediatelyAndCanResume" classname="music.shard.mobile.DownloadQueueTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

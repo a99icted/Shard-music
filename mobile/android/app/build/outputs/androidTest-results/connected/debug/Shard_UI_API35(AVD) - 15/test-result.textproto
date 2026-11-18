@@ -1,0 +1,68 @@
+# 2026-11-18T10:21:50.298860200Z:
+test_suite_meta_data {
+  scheduled_test_case_count: 1
+}
+test_status: PASSED
+test_result {
+  test_case {
+    test_class: "HotspotSyncTest"
+    test_package: "music.shard.mobile"
+    test_method: "qrFallbackAdvertisesTheConnectedInterface"
+    start_time {
+      seconds: 1794997306
+      nanos: 696000000
+    }
+    end_time {
+      seconds: 1794997306
+      nanos: 912000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.HotspotSyncTest-qrFallbackAdvertisesTheConnectedInterface.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+output_artifact {
+  label {
+    label: "test-results.log"
+    namespace: "com.google.testing.platform.runtime.android.driver.AndroidInstrumentationDriver"
+  }
+  source_path {
+    path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\testlog\\test-results.log"
+  }
+  type: TEST_DATA
+  mime_type: "text/plain"
+}

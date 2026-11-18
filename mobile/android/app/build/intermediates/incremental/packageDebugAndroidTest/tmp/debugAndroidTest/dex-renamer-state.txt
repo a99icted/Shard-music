@@ -1,0 +1,13 @@
+#Wed Nov 18 17:18:16 GMT+07:00 2026
+base.0=Z\:\\developing\\Lozex\\mobile\\android\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeExtDexDebugAndroidTest\\classes.dex
+base.1=Z\:\\developing\\Lozex\\mobile\\android\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\0\\classes.dex
+base.2=Z\:\\developing\\Lozex\\mobile\\android\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\5\\classes.dex
+base.3=Z\:\\developing\\Lozex\\mobile\\android\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\7\\classes.dex
+path.0=classes.dex
+path.1=0/classes.dex
+path.2=5/classes.dex
+path.3=7/classes.dex
+renamed.0=classes.dex
+renamed.1=classes2.dex
+renamed.2=classes3.dex
+renamed.3=classes4.dex

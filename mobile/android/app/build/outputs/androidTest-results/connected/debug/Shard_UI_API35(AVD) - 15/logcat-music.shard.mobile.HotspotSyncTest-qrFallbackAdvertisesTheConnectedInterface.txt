@@ -1,0 +1,8 @@
+11-18 10:21:46.692  4451  4466 I TestRunner: started: qrFallbackAdvertisesTheConnectedInterface(music.shard.mobile.HotspotSyncTest)
+11-18 10:21:46.693  4451  4465 D WM-SystemJobScheduler: Reconciling jobs
+11-18 10:21:46.707  4451  4465 D WM-ForceStopRunnable: Found unfinished work, scheduling it.
+11-18 10:21:46.712  4451  4469 D nativeloader: Load /data/app/~~twNbh821kgVLpPa1hVGOLQ==/music.shard.mobile-w4WnQPUURKwE71syImwhPw==/lib/x86_64/libshard_mobile.so using ns clns-7 from class loader (caller=/data/app/~~twNbh821kgVLpPa1hVGOLQ==/music.shard.mobile-w4WnQPUURKwE71syImwhPw==/base.apk!classes3.dex): ok
+11-18 10:21:46.764  4451  4472 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemalarm.RescheduleReceiver
+11-18 10:21:46.921  4451  4466 D TrafficStats: tagSocket(108) with statsTag=0xffffffff, statsUid=-1
+11-18 10:21:46.927  4451  4469 D TrafficStats: tagSocket(111) with statsTag=0xffffffff, statsUid=-1
+11-18 10:21:46.934  4451  4466 I TestRunner: finished: qrFallbackAdvertisesTheConnectedInterface(music.shard.mobile.HotspotSyncTest)

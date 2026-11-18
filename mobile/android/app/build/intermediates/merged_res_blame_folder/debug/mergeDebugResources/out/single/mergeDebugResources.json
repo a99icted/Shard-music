@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "music.shard.mobile.app-debug-67:/xml_data_extraction_rules.xml.flat",
+        "source": "music.shard.mobile.app-main-69:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "music.shard.mobile.app-debug-67:/drawable_ic_notification.xml.flat",
+        "source": "music.shard.mobile.app-main-69:/drawable/ic_notification.xml"
+    },
+    {
+        "merged": "music.shard.mobile.app-debug-67:/drawable_ic_shard.xml.flat",
+        "source": "music.shard.mobile.app-main-69:/drawable/ic_shard.xml"
+    }
+]
