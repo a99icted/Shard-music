@@ -10,6 +10,131 @@ mod player;
 mod ui {
     include!("../src/ui.rs");
 
+    pub fn show_ignored(app: &mut MusicApp) {
+        app.home_open = false;
+        app.settings_open = true;
+        app.settings_category = settings::SettingsCategory::Ignoring;
+    }
+
+    pub fn show_devices(app: &mut MusicApp, code: &str, cx: &mut Context<MusicApp>) {
+        app.start_sync(cx);
+        app.sync_service.as_ref().unwrap().pair(code).unwrap();
+        app.home_open = false;
+        app.settings_open = true;
+        app.settings_category = settings::SettingsCategory::ConnectedDevices;
+    }
+
+    // Regression: old libraries must appear before thumbnail migration finishes,
+    // including when one cover is corrupt. Navigation must remain independent.
+    pub fn check_startup_artwork(
+        app: &mut MusicApp,
+        count: usize,
+        window: &mut Window,
+        cx: &mut Context<MusicApp>,
+    ) {
+        app.home_open = false;
+        app.selected_playlist = None;
+        app.refresh(cx);
+        cx.spawn_in(window, async move |this, cx| {
+            let started = Instant::now();
+            loop {
+                cx.background_executor().timer(Duration::from_millis(10)).await;
+                let ready = this.read_with(cx, |app, _| !app.library_loading).unwrap();
+                assert!(started.elapsed() < Duration::from_secs(60), "Library metadata did not load");
+                if ready { break; }
+            }
+            this.update_in(cx, |app, _, cx| {
+                assert_eq!(app.tracks.len(), count);
+                assert_eq!(app.visible_tracks.len(), count);
+                assert!(app.active_background().is_some(), "Background metadata is missing");
+                assert!(!app.thumbnail_pending.is_empty(), "Migration finished before the startup check could run");
+                println!("Library ready in {:.2}s: {} tracks, background available, {} previews still pending", started.elapsed().as_secs_f64(), app.tracks.len(), app.thumbnail_pending.len());
+                app.selected_playlist = app.playlists.iter().find(|p| p.id != shard::favorites::FAVORITES_ID && p.track_count == count as i64).map(|p| p.id);
+                assert!(app.selected_playlist.is_some());
+                app.refresh(cx);
+            }).unwrap();
+            loop {
+                cx.background_executor().timer(Duration::from_millis(20)).await;
+                let ready = this.read_with(cx, |app, _| !app.library_loading).unwrap();
+                assert!(started.elapsed() < Duration::from_secs(60), "Navigation did not finish");
+                if ready { break; }
+            }
+            this.read_with(cx, |app, _| {
+                assert_eq!(app.visible_tracks.len(), count);
+                assert!(app.active_background().is_some());
+                println!("Playlist navigation passed during background migration");
+            }).unwrap();
+            loop {
+                cx.background_executor().timer(Duration::from_millis(100)).await;
+                let done = this.read_with(cx, |app, _| app.thumbnail_cancel.is_none()).unwrap();
+                assert!(started.elapsed() < Duration::from_secs(60), "Preview migration did not finish");
+                if done { break; }
+            }
+            this.read_with(cx, |app, _| {
+                let ready = app.tracks.iter().filter(|track| app.preview_paths.contains(&shard::artwork::track_path(&app.data_directory, track))).count();
+                assert_eq!(ready, count - 1, "Valid previews must appear; the corrupt cover must stay a placeholder");
+                assert!(app.thumbnail_queue.is_empty() && app.thumbnail_pending.is_empty());
+                assert!(app.active_background().is_some());
+                println!("Startup artwork regression passed: {ready} previews, one corrupt cover isolated, tracks and background retained");
+            }).unwrap();
+            let _ = cx.update(|_, cx| cx.quit());
+        }).detach();
+    }
+
+    // Exercise cache eviction using the real virtual list and temporary artwork.
+    pub fn stress_artwork(app: &mut MusicApp, window: &mut Window, cx: &mut Context<MusicApp>) {
+        app.home_open = false;
+        app.selected_playlist = None;
+        app.refresh(cx);
+        cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(100))
+                    .await;
+                if this
+                    .read_with(cx, |app, _| {
+                        !app.library_loading && app.thumbnail_cancel.is_none()
+                    })
+                    .unwrap_or(true)
+                {
+                    break;
+                }
+            }
+            let count = this.read_with(cx, |app, _| app.tracks.len()).unwrap_or(0);
+            for pass in 0..3 {
+                for index in (0..count).step_by(6) {
+                    let _ = this.update_in(cx, |app, _, cx| {
+                        app.collection_list.scroll_to(ListOffset {
+                            item_ix: index + 1,
+                            offset_in_item: px(0.),
+                        });
+                        cx.notify();
+                    });
+                    cx.background_executor()
+                        .timer(Duration::from_millis(120))
+                        .await;
+                }
+                let _ = this.update_in(cx, |app, window, cx| {
+                    app.images
+                        .update(cx, |cache, cx| cache.begin_frame(window, cx));
+                    let (images, bytes) = app.images.update(cx, |cache, _| cache.diagnostics());
+                    println!(
+                        "Artwork pass {}: {images} cached images, {:.2} MiB decoded",
+                        pass + 1,
+                        bytes as f64 / 1048576.
+                    );
+                    assert!(
+                        images <= 96 && bytes <= 32 * 1024 * 1024,
+                        "Artwork cache exceeded its budget"
+                    );
+                });
+            }
+            println!("Artwork cache stress passed");
+            let _ = cx.update(|_, cx| cx.quit());
+        })
+        .detach();
+    }
+
     // Exercise real duplicate review against a second temporary library.
     pub fn prepare_sync(
         app: &mut MusicApp,
@@ -29,14 +154,9 @@ mod ui {
     // Deterministic UI fixture; uses the same worker, progress channel and cancellation
     // path as an import, without network access or changes to the user's library.
     pub fn simulate_download(app: &mut MusicApp, cx: &mut Context<MusicApp>) {
-        let (sender, receiver) = mpsc::channel();
-        let cancel = Arc::new(AtomicBool::new(false));
-        app.download_progress = Some(receiver);
-        app.download_cancel = Some(cancel.clone());
-        app.modal = Some(Modal::Import);
-        app.run_job(
-            "Тестовый прогресс загрузки…",
-            move || {
+        app.launch_download(
+            "https://youtube.com/watch?v=preview".into(),
+            |_, _, cancel, sender| {
                 for completed in 0..12 {
                     sender.send(YoutubeProgress {
                         completed,
@@ -45,18 +165,15 @@ mod ui {
                     })?;
                     for _ in 0..100 {
                         if cancel.load(Ordering::Relaxed) {
-                            return Ok(());
+                            return Ok(shard::youtube::YoutubeDownloadReport {
+                                cancelled: true,
+                                ..Default::default()
+                            });
                         }
                         std::thread::sleep(Duration::from_millis(100));
                     }
                 }
-                Ok(())
-            },
-            |app, (), _| {
-                if matches!(app.modal, Some(Modal::Import)) {
-                    app.modal = None;
-                }
-                app.message = Some("Тестовый прогресс завершён; файлы не скачивались".into());
+                Ok(shard::youtube::YoutubeDownloadReport::default())
             },
             cx,
         );
@@ -72,8 +189,12 @@ fn main() -> Result<()> {
     let width: f32 = args.next().unwrap_or("960".into()).parse()?;
     let height: f32 = args.next().unwrap_or("640".into()).parse()?;
     let options: Vec<_> = args.collect();
+    let show_ignored = options.iter().any(|arg| arg == "--ignored");
+    let show_devices = options.iter().any(|arg| arg == "--devices");
     let simulate_download = options.iter().any(|arg| arg == "--download");
     let simulate_sync = options.iter().any(|arg| arg == "--sync");
+    let stress_artwork = options.iter().any(|arg| arg == "--artwork-stress");
+    let check_startup_artwork = options.iter().any(|arg| arg == "--startup-artwork-check");
     #[cfg(windows)]
     let taskbar = options.iter().any(|arg| arg == "--taskbar");
     let track_count: usize = options
@@ -97,12 +218,22 @@ fn main() -> Result<()> {
         playlists.create("Сосредоточиться")?,
         playlists.create("Пустой плейлист")?,
     ];
+    for index in 0..6 {
+        playlists.create(&format!("Тестовая подборка {}", index + 1))?;
+    }
     let cover_path = root.path().join("preview-cover.png");
     image::RgbImage::from_fn(480, 480, |x, y| {
         image::Rgb([(40 + x * 120 / 480) as u8, (50 + y * 80 / 480) as u8, 190])
     })
     .save(&cover_path)?;
     shard::appearance::AppearanceService::new(db.clone()).set_cover(playlist, &cover_path)?;
+    if check_startup_artwork {
+        anyhow::ensure!(
+            track_count > 16,
+            "Startup regression needs more than two thumbnail batches"
+        );
+        shard::backgrounds::BackgroundService::new(db.clone()).set_image(0, &cover_path)?;
+    }
     println!("Preview cover: {}", cover_path.display());
     // Twenty seconds of silence, sufficient for inspecting active playback.
     let samples = vec![0u8; 8000 * 2 * 20];
@@ -132,6 +263,14 @@ fn main() -> Result<()> {
             file_path: path,
             duration_ms: Some(20_000),
         })?;
+        std::fs::create_dir_all(root.path().join("artwork"))?;
+        std::fs::copy(&cover_path, shard::artwork::track_path(root.path(), &track))?;
+        if check_startup_artwork && index == track_count {
+            std::fs::write(
+                shard::artwork::track_path(root.path(), &track),
+                b"broken image",
+            )?;
+        }
         playlists.add_track(playlist, track.id)?;
         if index <= 6 {
             playlists.add_track(other_playlists[0], track.id)?;
@@ -152,7 +291,7 @@ fn main() -> Result<()> {
         }
     }
     let receiver_root = tempfile::tempdir()?;
-    let receiver = if simulate_sync {
+    let receiver = if simulate_sync || show_devices {
         let receiver_db = Database::open(receiver_root.path())?;
         shard::services::TrackService::new(receiver_db.clone()).import_local(&silent_audio)?;
         Some(shard::sync::SyncService::start(
@@ -183,13 +322,37 @@ fn main() -> Result<()> {
                 },
                 |window, cx| {
                     let view = cx.new(|cx| {
+                        if show_ignored {
+                            let ignored = shard::ignored::IgnoredTracksService::new(db.clone());
+                            for track in shard::services::TrackService::new(db.clone())
+                                .list_tracks()
+                                .unwrap()
+                                .into_iter()
+                                .take(3)
+                            {
+                                ignored.set(track.id, true).unwrap();
+                            }
+                        }
                         let mut app = ui::MusicApp::new(db, window, cx);
+                        if show_ignored {
+                            ui::show_ignored(&mut app);
+                        }
                         if simulate_download {
                             ui::simulate_download(&mut app, cx);
                         }
+                        if stress_artwork {
+                            ui::stress_artwork(&mut app, window, cx);
+                        }
+                        if check_startup_artwork {
+                            ui::check_startup_artwork(&mut app, track_count, window, cx);
+                        }
                         if let Some(code) = &peer_code {
-                            ui::prepare_sync(&mut app, code, window, cx)
-                                .expect("prepare sync preview");
+                            if show_devices {
+                                ui::show_devices(&mut app, code, cx);
+                            } else {
+                                ui::prepare_sync(&mut app, code, window, cx)
+                                    .expect("prepare sync preview");
+                            }
                         }
                         app
                     });

@@ -95,6 +95,98 @@ impl TrackService {
         self.repository.list_tracks()
     }
 
+    /// Backfill existing libraries without re-downloading any audio.
+    pub fn refresh_artwork(&self, cancel: &AtomicBool) -> Result<usize> {
+        let mut updated = 0;
+        for track in self.list_tracks()? {
+            if cancel.load(Ordering::Relaxed) {
+                break;
+            }
+            let destination = crate::artwork::track_path(self.db.root(), &track);
+            if destination.is_file() {
+                continue;
+            }
+            let embedded = self
+                .audio_path(&track)
+                .ok()
+                .and_then(|path| Probe::open(path).ok())
+                .and_then(|probe| probe.read().ok())
+                .and_then(|file| {
+                    file.primary_tag()
+                        .or_else(|| file.first_tag())
+                        .and_then(|tag| tag.pictures().first())
+                        .map(|picture| picture.data().to_vec())
+                });
+            let remote = || -> Result<Vec<u8>> {
+                let url = url::Url::parse(track.source_url.as_deref().context("No source")?)?;
+                let host = url.host_str().unwrap_or_default();
+                let artwork = if host == "open.spotify.com" || crate::yandex::is_host(host) {
+                    let collection = if host == "open.spotify.com" {
+                        crate::spotify::fetch(&url, cancel)?
+                    } else {
+                        crate::yandex::fetch(&url, cancel)?
+                    };
+                    collection
+                        .artwork_url
+                        .or_else(|| {
+                            collection
+                                .tracks
+                                .into_iter()
+                                .find_map(|track| track.artwork_url)
+                        })
+                        .context("No artwork")?
+                } else {
+                    let url = validate_youtube_url(url.as_str())?;
+                    let id = if url.host_str() == Some("youtu.be") {
+                        url.path().trim_start_matches('/').to_owned()
+                    } else {
+                        url.query_pairs()
+                            .find(|(key, _)| key == "v")
+                            .map(|(_, value)| value.into_owned())
+                            .context("No video ID")?
+                    };
+                    ensure!(
+                        id.bytes()
+                            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_'),
+                        "Invalid video ID"
+                    );
+                    format!("https://i.ytimg.com/vi/{id}/hqdefault.jpg")
+                };
+                crate::artwork::download(&artwork)
+            };
+            if let Some(bytes) = embedded.or_else(|| remote().ok()) {
+                if cancel.load(Ordering::Relaxed) {
+                    break;
+                }
+                if crate::artwork::save(&destination, &bytes).is_ok() {
+                    updated += 1;
+                }
+            }
+        }
+        let appearance = crate::appearance::AppearanceService::new(self.db.clone());
+        for playlist in PlaylistService::new(self.db.clone()).list_playlists()? {
+            if cancel.load(Ordering::Relaxed) {
+                break;
+            }
+            if playlist.cover_path.is_none() {
+                if let Some(track) = self.repository_for_playlist_cover(playlist.id)? {
+                    let _ = appearance.set_cover_if_missing(
+                        playlist.id,
+                        &crate::artwork::track_path(self.db.root(), &track),
+                    );
+                }
+            }
+        }
+        Ok(updated)
+    }
+
+    fn repository_for_playlist_cover(&self, id: i64) -> Result<Option<Track>> {
+        Ok(PlaylistRepository::new(self.db.clone())
+            .list_playlist_tracks(id)?
+            .into_iter()
+            .find(|track| crate::artwork::track_path(self.db.root(), track).is_file()))
+    }
+
     pub fn audio_path(&self, track: &Track) -> Result<PathBuf> {
         let relative = Path::new(&track.file_path);
         ensure!(
@@ -109,6 +201,29 @@ impl TrackService {
 
     pub fn import_local(&self, path: &Path) -> Result<Track> {
         self.import_file(path, None, None)
+    }
+
+    /// Platform download adapters supply a completed file, preserving the same
+    /// metadata validation and atomic library import as the desktop downloader.
+    pub fn import_download(
+        &self,
+        path: &Path,
+        source: &str,
+        title: Option<String>,
+        artist: Option<String>,
+        thumbnail: Option<String>,
+    ) -> Result<Track> {
+        let source = validate_music_url(source)?;
+        self.import_file(
+            path,
+            Some(source.to_string()),
+            Some(DownloadInfo {
+                track: title,
+                artist,
+                thumbnail,
+                ..Default::default()
+            }),
+        )
     }
 
     pub fn update_metadata(&self, id: i64, title: &str, artist: &str) -> Result<Track> {
@@ -149,6 +264,11 @@ impl TrackService {
             }
             return Err(error);
         }
+        let _ = fs::remove_file(crate::artwork::track_path(self.db.root(), &track));
+        let _ = fs::remove_file(crate::artwork::thumbnail_path(&crate::artwork::track_path(
+            self.db.root(),
+            &track,
+        )));
         if moved {
             fs::remove_file(&pending).with_context(|| {
                 localized_format!(
@@ -195,6 +315,10 @@ impl TrackService {
             .context(tr("Не удалось прочитать аудиофайл"))?;
         let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
         let info = info.unwrap_or_default();
+        let artwork_url = info.thumbnail.clone();
+        let embedded = tag
+            .and_then(|tag| tag.pictures().first())
+            .map(|p| p.data().to_vec());
         let title = info
             .track
             .or_else(|| {
@@ -245,6 +369,19 @@ impl TrackService {
         });
         if result.is_err() {
             let _ = fs::remove_file(destination);
+        }
+        if let Ok(track) = &result {
+            let cover = crate::artwork::track_path(self.db.root(), track);
+            // Metadata services provide the album cover; embedded art is the offline fallback.
+            let downloaded = artwork_url
+                .as_deref()
+                .and_then(|url| crate::artwork::download(url).ok())
+                .is_some_and(|bytes| crate::artwork::save(&cover, &bytes).is_ok());
+            if !downloaded {
+                if let Some(bytes) = embedded {
+                    let _ = crate::artwork::save(&cover, &bytes);
+                }
+            }
         }
         result
     }
@@ -324,6 +461,19 @@ impl TrackService {
                 &name
             })?);
         }
+        if let Some(id) = report.playlist_id {
+            if let Some(url) = source.artwork_url() {
+                if let Ok(bytes) = crate::artwork::download(url) {
+                    if let Ok(staging) = tempfile::tempdir_in(self.db.root().join("staging")) {
+                        let path = staging.path().join("cover.png");
+                        if crate::artwork::save(&path, &bytes).is_ok() {
+                            let _ = crate::appearance::AppearanceService::new(self.db.clone())
+                                .set_cover_if_missing(id, &path);
+                        }
+                    }
+                }
+            }
+        }
         for (index, entry) in playlist.entries.into_iter().enumerate() {
             if cancel.load(Ordering::Relaxed) {
                 report.cancelled = true;
@@ -354,6 +504,11 @@ impl TrackService {
                                 "Трек сохранён в библиотеку, но не добавлен в плейлист: {error:#}"
                             ),
                         });
+                    }
+                    if let Some(id) = report.playlist_id {
+                        let cover = crate::artwork::track_path(self.db.root(), &track);
+                        let _ = crate::appearance::AppearanceService::new(self.db.clone())
+                            .set_cover_if_missing(id, &cover);
                     }
                     report.tracks.push(track);
                 }
@@ -430,6 +585,79 @@ pub struct PlaylistService {
 }
 
 impl PlaylistService {
+    pub fn merge_playlists(&self, first: i64, second: i64, name: &str) -> Result<i64> {
+        ensure!(
+            first != second,
+            "{}",
+            localized_format!(
+                "Выберите два разных плейлиста",
+                "Choose two different playlists"
+            )
+        );
+        let name = name.trim();
+        ensure!(
+            !name.is_empty() && name.chars().count() <= 100,
+            "{}",
+            localized_format!(
+                "Название плейлиста должно содержать от 1 до 100 символов",
+                "Playlist name must contain 1–100 characters"
+            )
+        );
+        let mut conn = self.db.connect()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let mut seen = std::collections::HashSet::new();
+        let mut tracks = Vec::new();
+        for id in [first, second] {
+            let sql = if id == crate::favorites::FAVORITES_ID {
+                "SELECT track_id FROM favorites ORDER BY added_at,track_id"
+            } else {
+                ensure!(
+                    tx.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM playlists WHERE id=?1)",
+                        [id],
+                        |r| r.get::<_, bool>(0)
+                    )?,
+                    "{}",
+                    tr("Плейлист не найден")
+                );
+                "SELECT track_id FROM playlist_tracks WHERE playlist_id=?1 ORDER BY position"
+            };
+            let mut statement = tx.prepare(sql)?;
+            let params: &[&dyn rusqlite::ToSql] = if id == crate::favorites::FAVORITES_ID {
+                &[]
+            } else {
+                &[&id]
+            };
+            for id in statement.query_map(params, |r| r.get::<_, i64>(0))? {
+                let id = id?;
+                if seen.insert(id) {
+                    tracks.push(id);
+                }
+            }
+        }
+        tx.execute("INSERT INTO playlists(name) VALUES (?1)", [name])?;
+        let id = tx.last_insert_rowid();
+        for (position, track) in tracks.into_iter().enumerate() {
+            tx.execute(
+                "INSERT INTO playlist_tracks(playlist_id,track_id,position) VALUES (?1,?2,?3)",
+                rusqlite::params![id, track, position as i64],
+            )?;
+        }
+        tx.commit()?;
+        // A separate copy keeps deletion of either source independent.
+        if let Some(cover) = self
+            .list_playlists()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|p| p.id == first || p.id == second)
+            .find_map(|p| p.cover_path)
+        {
+            let _ = crate::appearance::AppearanceService::new(self.db.clone())
+                .set_cover(id, &self.db.root().join(cover));
+        }
+        Ok(id)
+    }
+
     pub fn rename_playlist(&self, id: i64, name: &str) -> Result<()> {
         ensure!(
             id != crate::favorites::FAVORITES_ID,
@@ -481,7 +709,17 @@ impl PlaylistService {
         if playlist_id == crate::favorites::FAVORITES_ID {
             return crate::favorites::FavoritesService::new(self.db.clone()).set(track_id, true);
         }
-        self.repository.add_track(playlist_id, track_id)
+        let added = self.repository.add_track(playlist_id, track_id)?;
+        if added {
+            if let Ok(track) = TrackRepository::new(self.db.clone()).get(track_id) {
+                let _ = crate::appearance::AppearanceService::new(self.db.clone())
+                    .set_cover_if_missing(
+                        playlist_id,
+                        &crate::artwork::track_path(self.db.root(), &track),
+                    );
+            }
+        }
+        Ok(added)
     }
     pub fn remove_track(&self, playlist_id: i64, track_id: i64) -> Result<bool> {
         if playlist_id == crate::favorites::FAVORITES_ID {
@@ -502,6 +740,10 @@ pub fn application_directory() -> Result<PathBuf> {
         std::env::var_os("SHARD_DATA_DIR").or_else(|| std::env::var_os("LOZEX_DATA_DIR"))
     {
         return Ok(PathBuf::from(path));
+    }
+    let config = crate::storage::config_directory()?;
+    if let Some(path) = crate::storage::configured_directory(&config)? {
+        return Ok(path);
     }
     // Keep using the existing library when upgrading from Lozex.
     if let Some(legacy) = directories::ProjectDirs::from("", "Lozex", "Lozex")

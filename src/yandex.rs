@@ -135,6 +135,22 @@ fn id(value: &Value) -> Result<String> {
     Ok(id)
 }
 
+fn yandex_artwork(value: &Value) -> Option<String> {
+    value
+        .get("coverUri")
+        .or_else(|| value.pointer("/cover/uri"))
+        .or_else(|| value.pointer("/albums/0/coverUri"))
+        .and_then(Value::as_str)
+        .map(|uri| {
+            let uri = uri.replace("%%", "600x600");
+            if uri.starts_with("https://") {
+                uri
+            } else {
+                format!("https://{uri}")
+            }
+        })
+}
+
 fn parse(result: &Value, is_collection: bool) -> Result<Collection> {
     let title = result
         .get("title")
@@ -190,6 +206,7 @@ fn parse(result: &Value, is_collection: bool) -> Result<Collection> {
             None => name.into(),
         };
         tracks.push(CollectionTrack {
+            artwork_url: yandex_artwork(track),
             title: name,
             artist,
             url: url::Url::parse(&format!("https://music.yandex.ru/track/{track_id}"))?,
@@ -207,6 +224,7 @@ fn parse(result: &Value, is_collection: bool) -> Result<Collection> {
         tr("В Яндекс Музыке нет доступных треков")
     );
     Ok(Collection {
+        artwork_url: yandex_artwork(result),
         title,
         tracks,
         is_collection,

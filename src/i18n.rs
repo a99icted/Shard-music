@@ -20,6 +20,65 @@ pub fn tr(text: &str) -> &str {
         return text;
     }
     match text {
+        "Сканируйте QR в Shard на телефоне. Подключение работает через роутер или точку доступа телефона/ПК. После смены сети включите синхронизацию заново и отсканируйте новый QR." => {
+            "Scan the QR in Shard on your phone. Connect through a router or a phone/PC hotspot. After changing networks, restart sync and scan the new QR."
+        }
+        "QR содержит локальные адреса устройства. После смены сети или включения точки доступа перезапустите синхронизацию и отсканируйте новый QR. Обложки, фоны и настройки пока не передаются." => {
+            "The QR contains the device's local addresses. After changing networks or enabling a hotspot, restart sync and scan the new QR. Covers, backgrounds and settings are not transferred yet."
+        }
+        "Подключённые устройства" => "Connected devices",
+        "Сопряжено в текущем сеансе" => "Paired for this session",
+        "Настроить подключение" => "Connection settings",
+        "Пока нет подключённых устройств. Подключите другое устройство по коду в разделе «Синхронизация»." => {
+            "No devices connected yet. Connect another device using its code in Synchronization settings."
+        }
+        "Сейчас поддерживается одно сопряжённое устройство. Постоянное соединение и live-управление ещё не включены; доступность проверяется при передаче. После перезапуска синхронизации подключитесь заново." => {
+            "One paired device is currently supported. Persistent connections and live control are not enabled yet; availability is checked during transfers. Pair again after restarting synchronization."
+        }
+        "Игнорирование" => "Ignored tracks",
+        "Игнор" => "Ignored",
+        "Игнорировать трек" => "Ignore track",
+        "Убрать из игнора" => "Stop ignoring track",
+        "Послушать трек" => "Play track",
+        "Сохраняем игнорирование…" => "Saving ignored tracks…",
+        "Трек добавлен в игнор" => "Track ignored",
+        "Трек убран из игнора" => "Track no longer ignored",
+        "Этот трек игнорируется. Запустите его напрямую или уберите из игнора." => {
+            "This track is ignored. Play it directly or stop ignoring it."
+        }
+        "Эти треки остаются в библиотеке и плейлистах, но не добавляются в очередь. Их можно слушать, запустив напрямую." => {
+            "These tracks stay in your library and playlists, but are excluded from the queue. You can play them directly."
+        }
+        "Нет игнорируемых треков. Добавьте трек через меню ⋯ → Игнорировать трек." => {
+            "No ignored tracks. Use a track’s ⋯ menu → Ignore track to add one."
+        }
+        "Удалить все игнорируемые треки…" => {
+            "Delete all ignored tracks…"
+        }
+        "Удалить все игнорируемые треки" => "Delete all ignored tracks",
+        "Удалить все игнорируемые треки?" => {
+            "Delete all ignored tracks?"
+        }
+        "Удаляем игнорируемые треки…" => "Deleting ignored tracks…",
+        "Очистить хранилище?" => "Clear storage?",
+        "Изменить хранилище" => "Change storage",
+        "Перенести и перезапустить" => "Move and restart",
+        "Перезапустить SHARD" => "Restart SHARD",
+        "Выберите папку для хранилища SHARD" => {
+            "Choose a folder for SHARD storage"
+        }
+        "По порядку" => "In order",
+        "Перемешивание" => "Shuffle",
+        "Перемешивание с автопродолжением" => "Shuffle with autoplay",
+        "Сегодня" => "Today",
+        "Обновляем обложки…" => "Updating covers…",
+        "Подтянуть недостающие обложки" => "Fetch missing covers",
+        "Загрузки" => "Downloads",
+        "Добавить в очередь" => "Add to queue",
+        "Объединить плейлисты" => "Merge playlists",
+        "Открыть папку хранилища" => "Open storage folder",
+        "Автопродолжение включено" => "Autoplay is on",
+        "Автопродолжение выключено" => "Autoplay is off",
         "Поиск по названию или исполнителю" => {
             "Search by title or artist"
         }

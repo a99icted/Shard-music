@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="music.shard.mobile.QrCodeTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-18T10:16:44" hostname="DESKTOP-VNETL3P" time="0.464">
+<testsuite name="music.shard.mobile.QrCodeTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-22T09:59:25" hostname="DESKTOP-VNETL3P" time="0.262">
   <properties/>
-  <testcase name="printedDesktopPairingCodeDecodesWithoutNetwork" classname="music.shard.mobile.QrCodeTest" time="0.464"/>
+  <testcase name="printedDesktopPairingCodeDecodesWithoutNetwork" classname="music.shard.mobile.QrCodeTest" time="0.262"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

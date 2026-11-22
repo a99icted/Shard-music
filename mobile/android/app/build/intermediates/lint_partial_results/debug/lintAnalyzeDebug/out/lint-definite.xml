@@ -4,12 +4,12 @@
     <incident
         id="GradleDependency"
         severity="warning"
-        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.09.00">
+        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.11.01">
         <fix-replace
-            description="Change to 2026.09.00"
+            description="Change to 2026.11.01"
             family="Update versions"
             oldString="2025.02.00"
-            replacement="2026.09.00"
+            replacement="2026.11.01"
             priority="0"/>
         <location
             file="${:app*projectDir}/build.gradle.kts"
@@ -44,12 +44,12 @@
     <incident
         id="GradleDependency"
         severity="warning"
-        message="A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0">
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.1">
         <fix-replace
-            description="Change to 2.11.0"
+            description="Change to 2.11.1"
             family="Update versions"
             oldString="2.8.7"
-            replacement="2.11.0"
+            replacement="2.11.1"
             priority="0"/>
         <location
             file="${:app*projectDir}/build.gradle.kts"
@@ -64,12 +64,12 @@
     <incident
         id="GradleDependency"
         severity="warning"
-        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.0">
+        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.1">
         <fix-replace
-            description="Change to 2.11.0"
+            description="Change to 2.11.1"
             family="Update versions"
             oldString="2.8.7"
-            replacement="2.11.0"
+            replacement="2.11.1"
             priority="0"/>
         <location
             file="${:app*projectDir}/build.gradle.kts"
@@ -184,12 +184,12 @@
     <incident
         id="GradleDependency"
         severity="warning"
-        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.09.00">
+        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.11.01">
         <fix-replace
-            description="Change to 2026.09.00"
+            description="Change to 2026.11.01"
             family="Update versions"
             oldString="2025.02.00"
-            replacement="2026.09.00"
+            replacement="2026.11.01"
             priority="0"/>
         <location
             file="${:app*projectDir}/build.gradle.kts"

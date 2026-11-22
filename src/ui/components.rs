@@ -30,8 +30,172 @@ impl SliderKind {
 }
 
 impl MusicApp {
+    /// Paint-only feedback keeps button geometry and event identity stable.
+    /// Animation frames stop as soon as the short hover/press transition finishes.
+    pub(super) fn button_feedback(&self, radius: f32) -> AnyElement {
+        #[derive(Default)]
+        struct Feedback {
+            hover: f32,
+            last: Option<Instant>,
+            press: Option<Instant>,
+        }
+        div()
+            .absolute()
+            .inset_0()
+            .child(
+                canvas(
+                    |bounds, window, cx| {
+                        let state = window.use_keyed_state("button-feedback-state", cx, |_, _| {
+                            Feedback::default()
+                        });
+                        let hover =
+                            window.is_window_active() && bounds.contains(&window.mouse_position());
+                        let alpha = state.update(cx, |s, _| {
+                            let now = Instant::now();
+                            let dt = s
+                                .last
+                                .map_or(1., |last| now.duration_since(last).as_secs_f32());
+                            s.last = Some(now);
+                            let target = if hover { 1. } else { 0. };
+                            let step = (dt / 0.14).min(1.);
+                            s.hover += (target - s.hover).clamp(-step, step);
+                            let pulse = s.press.map_or(0., |at| {
+                                (1. - now.duration_since(at).as_secs_f32() / 0.2).max(0.)
+                            });
+                            if (target - s.hover).abs() > 0.001 || pulse > 0. {
+                                window.request_animation_frame();
+                            }
+                            0.065 * s.hover + 0.1 * pulse
+                        });
+                        (state, alpha)
+                    },
+                    move |bounds, (state, alpha), window, _cx| {
+                        if alpha > 0.001 {
+                            let mut quad = fill(bounds, rgba(0xffffff00 | (alpha * 255.) as u32));
+                            quad.corner_radii = px(radius).into();
+                            window.paint_quad(quad);
+                        }
+                        window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
+                            if phase == DispatchPhase::Bubble
+                                && event.button == MouseButton::Left
+                                && bounds.contains(&event.position)
+                            {
+                                state.update(cx, |s, _| s.press = Some(Instant::now()));
+                                window.refresh();
+                            }
+                        });
+                    },
+                )
+                .size_full(),
+            )
+            .into_any_element()
+    }
+
+    pub(super) fn brand_mark(&self, size: f32) -> AnyElement {
+        img(self.preferences.theme.logo_path())
+            .image_cache(&self.images)
+            .size(px(size))
+            .flex_shrink_0()
+            .into_any_element()
+    }
+
+    pub(super) fn library_artwork(&self, size: f32) -> AnyElement {
+        let colors = self.colors();
+        div()
+            .size(px(size))
+            .flex_shrink_0()
+            .rounded_2xl()
+            .overflow_hidden()
+            .bg(linear_gradient(
+                135.,
+                linear_color_stop(rgb(colors.accent), 0.),
+                linear_color_stop(rgb(colors.hero), 1.),
+            ))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                svg()
+                    .path("icons/library-cover.svg")
+                    .size(px(size * 0.58))
+                    .text_color(rgb(colors.text)),
+            )
+            .into_any_element()
+    }
+
+    pub(super) fn playback_mode_control(
+        &self,
+        id: &'static str,
+        size: f32,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = self.colors();
+        let mode = self.playback_mode();
+        div()
+            .id(id)
+            .relative()
+            .size(px(size))
+            .flex_shrink_0()
+            .rounded_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_color(rgb(if mode == shard::queue::PlaybackMode::Ordered {
+                colors.muted
+            } else {
+                colors.accent
+            }))
+            .hover(move |s| s.bg(rgb(colors.button_hover)))
+            .active(|s| s.opacity(0.65))
+            .tooltip(move |_, cx| {
+                cx.new(|_| super::sidebar::SidebarTooltip(mode.label().into()))
+                    .into()
+            })
+            .child(
+                svg()
+                    .path(mode.icon())
+                    .size(px(size * 0.55))
+                    .with_animation(
+                        ("mode-change", mode as u64),
+                        Animation::new(Duration::from_millis(180)).with_easing(ease_out_quint()),
+                        |icon, delta| {
+                            icon.with_transformation(
+                                Transformation::rotate(radians(-0.35 * (1. - delta)))
+                                    .with_scaling(gpui::size(0.8 + 0.2 * delta, 0.8 + 0.2 * delta)),
+                            )
+                        },
+                    ),
+            )
+            .on_click(cx.listener(|app, _, _, cx| app.cycle_playback_mode(cx)))
+            .child(self.button_feedback(size / 2.))
+            .into_any_element()
+    }
+
     pub(super) fn playlist_artwork(&self, playlist: &Playlist, size: f32) -> AnyElement {
         let colors = self.colors();
+        if playlist.id == shard::favorites::FAVORITES_ID {
+            return div()
+                .size(px(size))
+                .flex_shrink_0()
+                .rounded_2xl()
+                .overflow_hidden()
+                .bg(linear_gradient(
+                    135.,
+                    linear_color_stop(rgb(colors.accent), 0.),
+                    linear_color_stop(rgb(colors.hero), 1.),
+                ))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    svg()
+                        .path("icons/favorites-cover.svg")
+                        .size(px(size * 0.78))
+                        .text_color(rgb(colors.text)),
+                )
+                .into_any_element();
+        }
         let mut cover = div()
             .size(px(size))
             .flex_shrink_0()
@@ -41,28 +205,33 @@ impl MusicApp {
                 .header_color
                 .or(playlist.cover_color)
                 .unwrap_or(colors.hero)));
-        cover = if let Some(path) = &playlist.cover_path {
+        cover = if let Some(path) = &playlist.cover_path
+            && (size > 96. || self.preview_paths.contains(&self.data_directory.join(path)))
+        {
             cover.child(
-                img(self.data_directory.join(path))
-                    .size_full()
-                    .object_fit(ObjectFit::Cover)
-                    .with_fallback(move || {
-                        div()
-                            .size_full()
-                            .bg(rgb(colors.hero))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child("♫")
-                            .into_any_element()
-                    }),
-            )
-        } else if playlist.id == shard::favorites::FAVORITES_ID {
-            cover.flex().items_center().justify_center().child(
-                svg()
-                    .path("icons/heart.svg")
-                    .size(px(size * 0.52))
-                    .text_color(rgb(colors.accent)),
+                img(if size <= 96. {
+                    shard::artwork::thumbnail_path(&self.data_directory.join(path))
+                } else {
+                    self.data_directory.join(path)
+                })
+                .image_cache(&self.images)
+                .size_full()
+                .object_fit(ObjectFit::Cover)
+                .with_fallback(move || {
+                    div()
+                        .size_full()
+                        .bg(rgb(colors.hero))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            svg()
+                                .path("icons/playlist.svg")
+                                .size(px(size * 0.52))
+                                .text_color(rgb(colors.text)),
+                        )
+                        .into_any_element()
+                }),
             )
         } else {
             cover
@@ -71,7 +240,7 @@ impl MusicApp {
                 .justify_center()
                 .text_size(px(size * 0.4))
                 .text_color(rgb(colors.text))
-                .child("♫")
+                .child(svg().path("icons/playlist.svg").size(px(size * 0.52)))
         };
         cover.into_any_element()
     }
@@ -94,19 +263,16 @@ impl MusicApp {
         } else {
             0xf5f5f7
         };
+        let regular_playlist = playlist.is_some_and(|p| p.id != shard::favorites::FAVORITES_ID);
         let cover_size = if dense {
             64.
-        } else if playlist.is_some() {
+        } else if regular_playlist {
             152.
         } else {
             88.
         };
         let count = self.visible_tracks.len();
-        let duration: i64 = self
-            .visible_tracks
-            .iter()
-            .filter_map(|t| t.duration_ms)
-            .sum();
+        let duration = self.visible_duration_ms;
         let mut cover = div()
             .id("collection-cover")
             .flex_shrink_0()
@@ -123,17 +289,7 @@ impl MusicApp {
                     }
                 }))
         } else {
-            cover.child(
-                div()
-                    .size(px(cover_size))
-                    .bg(rgb(colors.accent))
-                    .text_color(rgb(colors.bg))
-                    .text_size(px(cover_size * 0.5))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child("♫"),
-            )
+            cover.child(self.library_artwork(cover_size))
         };
         div()
             .flex_shrink_0()
@@ -172,7 +328,7 @@ impl MusicApp {
                         div()
                             .text_size(px(if dense {
                                 24.
-                            } else if playlist.is_some() {
+                            } else if regular_playlist {
                                 40.
                             } else {
                                 34.
@@ -240,8 +396,8 @@ impl MusicApp {
     }
 
     pub(super) fn download_card(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let label = self.busy.as_ref()?;
-        if matches!(self.modal, Some(Modal::Import)) {
+        let label = self.active_download.as_ref()?;
+        if matches!(self.modal, Some(Modal::Downloads)) {
             return None;
         }
         let colors = self.colors();
@@ -277,56 +433,67 @@ impl MusicApp {
                     }))
                     .w(relative(if known { fraction.clamp(0., 1.) } else { 0.25 })),
             );
-        let mut card = div()
-            .id("download-card")
-            .flex_shrink_0()
-            .p_3()
-            .rounded_lg()
-            .bg(rgb(colors.input))
-            .border_1()
-            .border_color(rgb(colors.border))
-            .cursor_pointer()
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(div().flex_1().text_xs().text_color(rgb(colors.text)).child(
-                        if self.download_cancel.is_some() {
-                            tr("↓ Загрузка")
-                        } else {
-                            tr("Обработка")
-                        },
-                    ))
-                    .child(
-                        div().text_xs().text_color(rgb(colors.muted)).child(
-                            progress
-                                .filter(|p| p.total > 0)
-                                .map(|p| format!("{}/{}", p.completed, p.total))
-                                .unwrap_or("…".into()),
+        let mut card =
+            div()
+                .id("download-card")
+                .flex_shrink_0()
+                .p_3()
+                .rounded_lg()
+                .bg(rgb(colors.input))
+                .border_1()
+                .border_color(rgb(colors.border))
+                .cursor_pointer()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(div().flex_1().text_xs().text_color(rgb(colors.text)).child(
+                            if self.download_cancel.is_some() {
+                                tr("↓ Загрузка")
+                            } else {
+                                tr("Обработка")
+                            },
+                        ))
+                        .child(
+                            div().text_xs().text_color(rgb(colors.muted)).child(
+                                progress
+                                    .filter(|p| p.total > 0)
+                                    .map(|p| format!("{}/{}", p.completed, p.total))
+                                    .unwrap_or("…".into()),
+                            ),
                         ),
+                )
+                .child(
+                    div()
+                        .my_2()
+                        .text_xs()
+                        .text_color(rgb(colors.muted))
+                        .text_ellipsis()
+                        .overflow_hidden()
+                        .child(
+                            progress
+                                .and_then(|p| p.current_title.clone())
+                                .unwrap_or(label.clone()),
+                        ),
+                )
+                .child(bar)
+                .child(div().mt_2().text_xs().text_color(rgb(colors.muted)).child(
+                    localized_format!(
+                        "В ожидании: {} · Открыть загрузки",
+                        "Waiting: {} · Open downloads",
+                        self.pending_downloads.len()
                     ),
-            )
-            .child(
-                div()
-                    .my_2()
-                    .text_xs()
-                    .text_color(rgb(colors.muted))
-                    .text_ellipsis()
-                    .overflow_hidden()
-                    .child(
-                        progress
-                            .and_then(|p| p.current_title.clone())
-                            .unwrap_or(label.clone()),
-                    ),
-            )
-            .child(bar)
-            .on_click(cx.listener(|app, _, window, cx| app.open_modal(Modal::Import, window, cx)));
+                ))
+                .on_click(
+                    cx.listener(|app, _, window, cx| app.open_modal(Modal::Downloads, window, cx)),
+                );
         if let Some(cancel) = &self.download_cancel {
             let token = cancel.clone();
             card = card.child(
                 div()
                     .id("cancel-mini-download")
+                    .relative()
                     .mt_2()
                     .text_xs()
                     .text_color(rgb(colors.muted))
@@ -335,6 +502,7 @@ impl MusicApp {
                     } else {
                         tr("Остановить")
                     })
+                    .child(self.button_feedback(4.))
                     .on_click(cx.listener(move |_, _, _, cx| {
                         cx.stop_propagation();
                         token.store(true, Ordering::Relaxed);
@@ -377,6 +545,7 @@ impl MusicApp {
             heading = heading.child(
                 div()
                     .id("error-details")
+                    .relative()
                     .text_xs()
                     .cursor_pointer()
                     .text_color(rgb(colors.muted))
@@ -386,6 +555,7 @@ impl MusicApp {
                     } else {
                         tr("Подробнее")
                     })
+                    .child(self.button_feedback(4.))
                     .on_click(cx.listener(|app, _, _, cx| {
                         app.error_details_open = !app.error_details_open;
                         cx.notify();
@@ -474,7 +644,7 @@ impl MusicApp {
                         format!("{:02}", index + 1)
                     }),
             )
-            .child(self.artwork(index, 40.))
+            .child(self.track_artwork(&track, 40.))
             .child(self.track_caption(&track, active))
             .child(
                 div()
@@ -487,6 +657,7 @@ impl MusicApp {
             .child(
                 div()
                     .id(("favorite-track", id as u64))
+                    .relative()
                     .size_8()
                     .flex_shrink_0()
                     .rounded_lg()
@@ -509,6 +680,7 @@ impl MusicApp {
                                 colors.muted
                             })),
                     )
+                    .child(self.button_feedback(8.))
                     .on_click(cx.listener(move |app, _, _, cx| {
                         cx.stop_propagation();
                         app.toggle_favorite(id, cx);
@@ -582,7 +754,7 @@ impl MusicApp {
                     .flex()
                     .items_center()
                     .gap_3()
-                    .child(self.artwork(0, 42.))
+                    .child(self.track_artwork(track, 42.))
                     .child(self.track_caption(track, true)),
             );
         } else {
@@ -661,7 +833,9 @@ impl MusicApp {
                                     .get(&id)
                                     .and_then(|index| app.tracks.get(*index))
                                 {
-                                    row = row.child(app.track_caption(track, false));
+                                    row = row
+                                        .child(app.track_artwork(track, 32.))
+                                        .child(app.track_caption(track, false));
                                 }
                                 row.child(
                                     app.icon_button(("unqueue", id as u64), "×", false)
@@ -679,19 +853,6 @@ impl MusicApp {
                 .min_h_0(),
             );
         }
-        panel = panel.child(
-            div()
-                .border_t_1()
-                .border_color(rgb(colors.border))
-                .pt_3()
-                .text_xs()
-                .text_color(rgb(colors.muted))
-                .child(if self.preferences.shuffle {
-                    tr("⤨  Перемешивание включено")
-                } else {
-                    tr("В порядке выбранной подборки")
-                }),
-        );
         if overlay {
             panel = panel
                 .absolute()
@@ -701,7 +862,13 @@ impl MusicApp {
                 .shadow_lg()
                 .occlude();
         }
-        panel.into_any_element()
+        panel
+            .with_animation(
+                "queue-enter",
+                Animation::new(Duration::from_millis(180)).with_easing(ease_out_quint()),
+                |panel, t| panel.opacity(t),
+            )
+            .into_any_element()
     }
 
     pub(super) fn slider(
@@ -904,37 +1071,55 @@ impl MusicApp {
             .flex()
             .items_center()
             .gap_3()
-            .child(self.artwork(0, if compact { 36. } else { 48. }));
+            .children(
+                current.map(|track| self.track_artwork(track, if compact { 36. } else { 48. })),
+            );
         caption = if let Some(track) = current {
             let id = track.id;
             let favorite = self.favorite_ids.contains(&id);
-            caption.child(self.track_caption(track, false)).child(
-                div()
-                    .id("favorite-playing-track")
-                    .size_8()
-                    .flex_shrink_0()
-                    .rounded_lg()
-                    .cursor_pointer()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .hover(move |s| s.bg(rgb(colors.button_hover)))
-                    .child(
-                        svg()
-                            .path(if favorite {
-                                "icons/heart.svg"
-                            } else {
-                                "icons/heart-outline.svg"
+            caption
+                .child(self.track_caption(track, false))
+                .child(
+                    self.icon_button("ignore-playing-track", "⊘", self.ignored_ids.contains(&id))
+                        .tooltip(|_, cx| {
+                            cx.new(|_| {
+                                super::sidebar::SidebarTooltip(tr("Игнорировать трек").into())
                             })
-                            .size_5()
-                            .text_color(rgb(if favorite {
-                                colors.accent
-                            } else {
-                                colors.muted
-                            })),
-                    )
-                    .on_click(cx.listener(move |app, _, _, cx| app.toggle_favorite(id, cx))),
-            )
+                            .into()
+                        })
+                        .on_click(
+                            cx.listener(move |app, _, _, cx| app.set_track_ignored(id, true, cx)),
+                        ),
+                )
+                .child(
+                    div()
+                        .id("favorite-playing-track")
+                        .relative()
+                        .size_8()
+                        .flex_shrink_0()
+                        .rounded_lg()
+                        .cursor_pointer()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .hover(move |s| s.bg(rgb(colors.button_hover)))
+                        .child(
+                            svg()
+                                .path(if favorite {
+                                    "icons/heart.svg"
+                                } else {
+                                    "icons/heart-outline.svg"
+                                })
+                                .size_5()
+                                .text_color(rgb(if favorite {
+                                    colors.accent
+                                } else {
+                                    colors.muted
+                                })),
+                        )
+                        .child(self.button_feedback(8.))
+                        .on_click(cx.listener(move |app, _, _, cx| app.toggle_favorite(id, cx))),
+                )
         } else {
             caption.child(
                 div()
@@ -964,10 +1149,7 @@ impl MusicApp {
                     .items_center()
                     .justify_center()
                     .gap_2()
-                    .child(
-                        self.icon_button("shuffle-player", "⤨", self.preferences.shuffle)
-                            .on_click(cx.listener(|app, _, _, cx| app.toggle_shuffle(cx))),
-                    )
+                    .child(self.playback_mode_control("shuffle-player", 32., cx))
                     .child(
                         self.icon_button("previous", "‹‹", false)
                             .on_click(cx.listener(|app, _, _, cx| {
@@ -978,6 +1160,7 @@ impl MusicApp {
                     .child(
                         div()
                             .id("toggle-play")
+                            .relative()
                             .size_10()
                             .rounded_full()
                             .bg(rgb(colors.accent))
@@ -987,11 +1170,16 @@ impl MusicApp {
                             .items_center()
                             .justify_center()
                             .text_lg()
-                            .child(if current.is_some() && !state.paused {
-                                "Ⅱ"
-                            } else {
-                                "▶"
-                            })
+                            .child(
+                                svg()
+                                    .path(if current.is_some() && !state.paused {
+                                        "icons/pause.svg"
+                                    } else {
+                                        "icons/play.svg"
+                                    })
+                                    .size_5(),
+                            )
+                            .child(self.button_feedback(20.))
                             .on_click(cx.listener(|app, _, _, cx| app.toggle_playback(cx))),
                     )
                     .child(self.icon_button("next", "››", false).on_click(cx.listener(
@@ -1052,6 +1240,7 @@ impl MusicApp {
             .child(
                 div()
                     .id("toggle-queue")
+                    .relative()
                     .px_2()
                     .py_2()
                     .rounded_lg()
@@ -1064,6 +1253,7 @@ impl MusicApp {
                     }))
                     .hover(move |s| s.bg(rgb(colors.button_hover)))
                     .child(tr("≡ Очередь"))
+                    .child(self.button_feedback(8.))
                     .on_click(cx.listener(|app, _, _, cx| app.toggle_queue(cx))),
             )
             .child(
@@ -1186,14 +1376,7 @@ impl MusicApp {
                 )
                 .on_click(cx.listener(|app, _, _, cx| app.play_collection(cx))),
             )
-            .child(
-                self.button(
-                    "shuffle-collection",
-                    tr("⤨  Перемешать"),
-                    self.preferences.shuffle,
-                )
-                .on_click(cx.listener(|app, _, _, cx| app.shuffle_collection(cx))),
-            );
+            .child(self.playback_mode_control("shuffle-collection", 44., cx));
         let mut content = div()
             .id("collection-content")
             .w_full()
@@ -1268,21 +1451,22 @@ impl MusicApp {
                             .text_color(rgb(colors.muted))
                             .child("♫"),
                     )
-                    .child(div().text_lg().child(if searching {
-                        tr("Ничего не найдено")
+                    .child(div().text_lg().child(if self.library_loading {
+                        localized_format!("Загружаем треки…", "Loading tracks…")
+                    } else if searching {
+                        tr("Ничего не найдено").into()
                     } else {
-                        tr("Здесь будет ваша музыка")
+                        tr("Здесь будет ваша музыка").into()
                     }))
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(colors.muted))
-                            .child(if searching {
-                                tr("Попробуйте другое название или исполнителя")
-                            } else {
-                                tr("Добавьте музыку или выберите треки из библиотеки")
-                            }),
-                    ),
+                    .child(div().text_sm().text_color(rgb(colors.muted)).child(
+                        if self.library_loading {
+                            ""
+                        } else if searching {
+                            tr("Попробуйте другое название или исполнителя")
+                        } else {
+                            tr("Добавьте музыку или выберите треки из библиотеки")
+                        },
+                    )),
             );
         } else {
             content = content.children((!short).then(|| {
@@ -1306,6 +1490,32 @@ impl MusicApp {
 
 impl Render for MusicApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.image_cache_dirty {
+            self.images.update(cx, |cache, cx| cache.clear(window, cx));
+            self.image_cache_dirty = false;
+        }
+        for path in std::mem::take(&mut self.image_invalidations) {
+            self.images
+                .update(cx, |cache, cx| cache.remove_path(path, window, cx));
+        }
+        self.images
+            .update(cx, |cache, cx| cache.begin_frame(window, cx));
+        if self.storage_moving {
+            return self.moving_storage_view(cx);
+        }
+        if self.storage_clearing {
+            return div()
+                .size_full()
+                .bg(rgb(self.colors().bg))
+                .text_color(rgb(self.colors().text))
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .gap_4()
+                .child(self.brand_mark(56.))
+                .child(localized_format!("Очищаем хранилище…", "Clearing storage…"));
+        }
         let colors = self.colors();
         let viewport = window.viewport_size();
         let compact = viewport.width < px(1100.);
@@ -1361,13 +1571,28 @@ impl Render for MusicApp {
                     .flex()
                     .justify_center()
                     .px(px(if dense { 16. } else { 32. }))
-                    .child(if self.settings_open {
-                        self.settings_view(cx)
-                    } else if self.home_open {
-                        self.home_view(viewport, cx)
-                    } else {
-                        content.into_any_element()
-                    })
+                    .child(
+                        if self.library_loading && self.playlists.is_empty() && !self.settings_open
+                        {
+                            div()
+                                .size_full()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_color(rgb(colors.muted))
+                                .child(localized_format!(
+                                    "Загружаем библиотеку…",
+                                    "Loading library…"
+                                ))
+                                .into_any_element()
+                        } else if self.settings_open {
+                            self.settings_view(cx)
+                        } else if self.home_open {
+                            self.home_view(viewport, cx)
+                        } else {
+                            content.into_any_element()
+                        },
+                    )
                     .children(
                         (!self.home_open && !self.settings_open && {
                             let top = self.collection_list.logical_scroll_top();
@@ -1464,6 +1689,7 @@ impl Render for MusicApp {
                     .overflow_hidden()
                     .child(
                         img(self.data_directory.join(&background.display_path))
+                            .image_cache(&self.images)
                             .size_full()
                             .object_fit(ObjectFit::Cover),
                     )
@@ -1483,9 +1709,29 @@ impl MusicApp {
         active: bool,
     ) -> Stateful<Div> {
         let colors = self.colors();
+        let path = match label {
+            "⊘" => Some("icons/ban.svg"),
+            "🗑" => Some("icons/trash.svg"),
+            "▶" => Some("icons/play.svg"),
+            "Ⅱ" => Some("icons/pause.svg"),
+            "‹‹" => Some("icons/previous.svg"),
+            "››" => Some("icons/next.svg"),
+            "×" | "✕" => Some("icons/close.svg"),
+            "⋯" => Some("icons/more.svg"),
+            "✎" => Some("icons/edit.svg"),
+            "⤨" => Some("icons/shuffle.svg"),
+            "■" => Some("icons/stop.svg"),
+            _ => None,
+        };
+        let content = if let Some(path) = path {
+            svg().path(path).size_5().into_any_element()
+        } else {
+            div().child(label.to_owned()).into_any_element()
+        };
         div()
             .id(id)
             .size_8()
+            .relative()
             .flex_shrink_0()
             .rounded_lg()
             .flex()
@@ -1494,32 +1740,72 @@ impl MusicApp {
             .cursor_pointer()
             .text_size(px(18.))
             .text_color(rgb(if active { colors.accent } else { colors.muted }))
-            .bg(rgb(if active { colors.active } else { colors.panel }))
+            .bg(if active {
+                rgb(colors.active)
+            } else {
+                rgba(0x00000000)
+            })
+            .active(|s| s.opacity(0.65))
             .hover(move |s| s.bg(rgb(colors.button_hover)).text_color(rgb(colors.text)))
-            .child(label.to_owned())
+            .child(content)
+            .child(self.button_feedback(8.))
     }
 
-    fn artwork(&self, index: usize, size: f32) -> Div {
+    pub(super) fn track_artwork(&self, track: &Track, size: f32) -> AnyElement {
         let colors = self.colors();
+        if !self
+            .preview_paths
+            .contains(&shard::artwork::track_path(&self.data_directory, track))
+        {
+            return div()
+                .size(px(size))
+                .flex_shrink_0()
+                .rounded_lg()
+                .bg(rgb(colors.button))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    svg()
+                        .path("icons/music.svg")
+                        .size(px(size * 0.5))
+                        .text_color(rgb(colors.muted)),
+                )
+                .into_any_element();
+        }
         div()
             .size(px(size))
             .flex_shrink_0()
-            .rounded_md()
-            .bg(rgb(match self.preferences.theme {
-                Theme::Forest => [0x344735, 0x39354a, 0x49402d, 0x29454a],
-                Theme::Onyx => [0x292b34, 0x302d39, 0x343139, 0x283137],
-                Theme::PickMe => [0x56314c, 0x4b344d, 0x63394e, 0x4b3040],
-                Theme::Cosmic => [0x302b59, 0x253957, 0x40325c, 0x29374e],
-            }[index % 4]))
-            .flex()
-            .items_center()
-            .justify_center()
-            .text_lg()
-            .text_color(rgb(colors.text))
-            .child("♫")
+            .rounded_lg()
+            .overflow_hidden()
+            .child(
+                img(shard::artwork::thumbnail_path(&shard::artwork::track_path(
+                    &self.data_directory,
+                    track,
+                )))
+                .image_cache(&self.images)
+                .size_full()
+                .object_fit(ObjectFit::Cover)
+                .with_fallback(move || {
+                    div()
+                        .size_full()
+                        .bg(rgb(colors.button))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            svg()
+                                .path("icons/music.svg")
+                                .size(px(size * 0.5))
+                                .text_color(rgb(colors.muted)),
+                        )
+                        .into_any_element()
+                }),
+            )
+            .into_any_element()
     }
 
-    fn track_caption(&self, track: &Track, _active: bool) -> Div {
+    pub(super) fn track_caption(&self, track: &Track, _active: bool) -> Div {
         let colors = self.colors();
         div()
             .flex_1()
@@ -1529,11 +1815,31 @@ impl MusicApp {
             .gap_1()
             .child(
                 div()
-                    .text_sm()
-                    .overflow_hidden()
-                    .text_ellipsis()
-                    .text_color(rgb(colors.text))
-                    .child(track.title.clone()),
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .min_w_0()
+                    .w_full()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_sm()
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .text_color(rgb(colors.text))
+                            .child(track.title.clone()),
+                    )
+                    .children(self.ignored_ids.contains(&track.id).then(|| {
+                        div()
+                            .flex_shrink_0()
+                            .px_2()
+                            .rounded_md()
+                            .text_size(px(10.))
+                            .bg(rgb(colors.button))
+                            .text_color(rgb(colors.muted))
+                            .child(tr("Игнор"))
+                    })),
             )
             .child(
                 div()

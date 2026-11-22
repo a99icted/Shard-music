@@ -4,8 +4,11 @@ use super::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum SettingsCategory {
     Customization,
+    Storage,
+    Ignoring,
     Language,
     Synchronization,
+    ConnectedDevices,
 }
 
 impl MusicApp {
@@ -243,6 +246,7 @@ impl MusicApp {
                         .overflow_hidden()
                         .child(
                             img(self.data_directory.join(&background.display_path))
+                                .image_cache(&self.images)
                                 .size_full()
                                 .object_fit(ObjectFit::Cover),
                         ),
@@ -298,6 +302,106 @@ impl MusicApp {
         }
         section.into_any_element()
     }
+    fn storage_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+        let colors = self.colors();
+        div().flex().flex_col().gap_5()
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .p_4()
+                    .rounded_xl()
+                    .bg(self.surface(colors.panel))
+                    .border_1()
+                    .border_color(rgb(colors.border))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(localized_format!("Хранилище музыки", "Music storage")),
+                    )
+                    .child(
+                        div()
+                            .mt_2()
+                            .text_xs()
+                            .text_color(rgb(colors.muted))
+                            .child(self.data_directory.to_string_lossy().into_owned()),
+                    )
+                    .child(
+                        self.button("change-library-folder", tr("Изменить хранилище"), false)
+                            .mt_3()
+                            .on_click(cx.listener(|app, _, _, cx| app.choose_storage(cx))),
+                    )
+                    .child(
+                        self.button("open-library-folder", tr("Открыть папку хранилища"), false)
+                            .mt_3()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(svg().path("icons/folder.svg").size_4())
+                            .on_click(cx.listener(|app, _, _, cx| {
+                                #[cfg(windows)]
+                                let result = std::process::Command::new("explorer.exe")
+                                    .arg(&app.data_directory)
+                                    .spawn();
+                                #[cfg(not(windows))]
+                                let result = std::process::Command::new("xdg-open")
+                                    .arg(&app.data_directory)
+                                    .spawn();
+                                if let Err(error) = result {
+                                    app.error = Some(format!("{error:#}"));
+                                    cx.notify();
+                                }
+                            })),
+                    ),
+            )
+            .child(
+                self.button(
+                    "refresh-artwork",
+                    if self.artwork_cancel.is_some() {
+                        tr("Обновляем обложки…")
+                    } else {
+                        tr("Подтянуть недостающие обложки")
+                    },
+                    false,
+                )
+                .on_click(cx.listener(|app, _, _, cx| {
+                    if app.artwork_cancel.is_some() || app.storage_clearing || app.storage_moving {
+                        return;
+                    }
+                    let token = Arc::new(AtomicBool::new(false));
+                    app.artwork_cancel = Some(token.clone());
+                    let service = app.tracks_service.clone();
+                    let task = cx
+                        .background_executor()
+                        .spawn(async move { service.refresh_artwork(&token) });
+                    cx.spawn(async move |this, cx| {
+                        let result = task.await;
+                        let _ = this.update(cx, |app, cx| {
+                            app.artwork_cancel = None;
+                            match result {
+                                Ok(count) => {
+                                    app.message = Some(localized_format!(
+                                        "Обновлено обложек треков: {count}",
+                                        "Track covers updated: {count}"
+                                    ))
+                                }
+                                Err(error) => app.error = Some(format!("{error:#}")),
+                            }
+                            app.refresh(cx);
+                        });
+                    })
+                    .detach();
+                    cx.notify();
+                })),
+            )
+            .child(div().p_4().rounded_xl().border_1().border_color(rgba(0xe8787855))
+                .child(div().text_sm().font_weight(FontWeight::SEMIBOLD).child(localized_format!("Очистка музыки", "Clear music")))
+                .child(div().mt_2().text_sm().text_color(rgb(colors.muted)).child(localized_format!("Удалить все треки и их обложки из этого хранилища. Плейлисты останутся пустыми; оформление, настройки и статистика сохранятся.", "Delete all tracks and their covers from this storage. Playlists become empty; appearance, settings and listening totals are kept.")))
+                .child(self.button("clear-storage", &localized_format!("Очистить хранилище…", "Clear storage…"), false).mt_3().text_color(rgb(0xf29a9a))
+                    .on_click(cx.listener(|app,_,window,cx|app.open_modal(Modal::ClearStorage,window,cx)))))
+            .into_any_element()
+    }
+
     pub(super) fn settings_view(&self, cx: &mut Context<Self>) -> AnyElement {
         let colors = self.colors();
         let mut view = div()
@@ -322,6 +426,7 @@ impl MusicApp {
                     .flex()
                     .flex_shrink_0()
                     .gap_3()
+                    .flex_wrap()
                     .child(
                         self.button(
                             "settings-customization",
@@ -330,6 +435,17 @@ impl MusicApp {
                         )
                         .on_click(cx.listener(|app, _, _, cx| {
                             app.settings_category = SettingsCategory::Customization;
+                            cx.notify();
+                        })),
+                    )
+                    .child(
+                        self.button(
+                            "settings-storage",
+                            &localized_format!("Хранилище", "Storage"),
+                            self.settings_category == SettingsCategory::Storage,
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.settings_category = SettingsCategory::Storage;
                             cx.notify();
                         })),
                     )
@@ -346,6 +462,17 @@ impl MusicApp {
                     )
                     .child(
                         self.button(
+                            "settings-ignoring",
+                            tr("Игнорирование"),
+                            self.settings_category == SettingsCategory::Ignoring,
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.settings_category = SettingsCategory::Ignoring;
+                            cx.notify();
+                        })),
+                    )
+                    .child(
+                        self.button(
                             "settings-sync",
                             tr("Синхронизация"),
                             self.settings_category == SettingsCategory::Synchronization,
@@ -354,7 +481,18 @@ impl MusicApp {
                             app.settings_category = SettingsCategory::Synchronization;
                             cx.notify();
                         })),
-                    ),
+                    )
+                    .children(self.sync_service.is_some().then(|| {
+                        self.button(
+                            "settings-devices",
+                            tr("Подключённые устройства"),
+                            self.settings_category == SettingsCategory::ConnectedDevices,
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.settings_category = SettingsCategory::ConnectedDevices;
+                            cx.notify();
+                        }))
+                    })),
             )
             .children(self.notifications(cx))
             .children(self.busy.as_ref().map(|label| {
@@ -365,6 +503,15 @@ impl MusicApp {
                     .child(label.clone())
             }));
         match self.settings_category {
+            SettingsCategory::ConnectedDevices => {
+                view = view.child(self.connected_devices_view(cx));
+            }
+            SettingsCategory::Ignoring => {
+                view = view.child(self.ignored_settings(cx));
+            }
+            SettingsCategory::Storage => {
+                view = view.child(self.storage_settings(cx));
+            }
             SettingsCategory::Synchronization => {
                 view = view.child(self.sync_settings(cx));
             }
@@ -420,11 +567,12 @@ impl MusicApp {
                     .child(div().text_lg().font_weight(FontWeight::SEMIBOLD).child(tr("Тема приложения")))
                     .child(div().mt_3().flex().flex_wrap().gap_3().children([Theme::Forest,Theme::Onyx,Theme::PickMe,Theme::Cosmic].into_iter().enumerate().map(|(index,theme)| {
                         let palette=theme.palette();
-                        div().id(("settings-theme",index as u64)).w(px(144.)).p_3().rounded_lg().cursor_pointer()
+                        div().id(("settings-theme",index as u64)).relative().w(px(144.)).p_3().rounded_lg().cursor_pointer()
                             .bg(rgb(palette.panel)).border_2().border_color(rgb(if self.preferences.theme==theme {palette.accent}else{palette.border}))
                             .hover(move |s|s.border_color(rgb(palette.accent)))
                             .child(div().flex().gap_2().children([palette.bg,palette.button,palette.accent].into_iter().map(|color|div().size_5().rounded_full().bg(rgb(color)))))
                             .child(div().mt_3().text_color(rgb(palette.text)).child(theme.name()))
+                            .child(self.button_feedback(8.))
                             .on_click(cx.listener(move |app,_,_,cx|app.set_theme(theme,cx)))
                     }))))
                     .child(self.background_controls(0,cx))

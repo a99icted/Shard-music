@@ -29,3 +29,9 @@ and the updated viewport.
 
 Keep this directory when sharing/building Shard. Remove the Cargo patch only
 after an upstream version passes the regression and playback UI checks.
+
+`src/elements/svg.rs`, `Svg::paint`: inherit the current text color when the SVG has no explicit local color. Previously such SVGs were silently skipped, including icons inside themed buttons. Explicit per-icon colors retain priority.
+
+`src/platform/windows/directx_atlas.rs`, `DirectXAtlas::remove`: return the removed tile to the texture's allocator before decreasing its live tile count. Previously removing images left their atlas allocations occupied while other tiles kept the texture alive, so scrolling through new artwork continued allocating textures despite image-cache eviction.
+
+Regression: `cargo run --locked --example layout_preview -- 960 640 --tracks=400 --artwork-stress` scrolls a temporary library three times and verifies the decoded artwork cache remains within 96 entries / 32 MiB while exercising DirectX tile reuse.

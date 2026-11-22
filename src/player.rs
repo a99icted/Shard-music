@@ -25,6 +25,8 @@ pub struct PlaybackTrack {
 
 enum Command {
     Start(Vec<PlaybackTrack>, i64),
+    Library(Vec<PlaybackTrack>, bool),
+    Ignored(std::collections::HashSet<i64>),
     Select(i64),
     Toggle,
     Stop,
@@ -75,6 +77,8 @@ struct Engine {
     output: Option<(OutputStream, rodio::OutputStreamHandle)>,
     sink: Option<Sink>,
     tracks: HashMap<i64, PathBuf>,
+    library: Vec<PlaybackTrack>,
+    autoplay: bool,
     queue: PlaybackQueue,
     volume: f32,
     error: Option<String>,
@@ -175,6 +179,18 @@ impl Engine {
         self.pending_ms = 0;
     }
 
+    fn extend_queue(&mut self) -> bool {
+        let ids: Vec<_> = self.library.iter().map(|t| t.id).collect();
+        if self.queue.extend_from_library(&ids, self.autoplay) {
+            for track in &self.library {
+                self.tracks.insert(track.id, track.path.clone());
+            }
+            true
+        } else {
+            false
+        }
+    }
+
     fn play_current(&mut self) {
         if let Some(sink) = self.sink.take() {
             sink.stop();
@@ -250,6 +266,8 @@ impl Player {
                 output: None,
                 sink: None,
                 tracks: HashMap::new(),
+                library: Vec::new(),
+                autoplay: true,
                 queue,
                 volume,
                 error: None,
@@ -283,6 +301,7 @@ impl Player {
                         | Command::Repeat(..)
                         | Command::Enqueue(..)
                         | Command::Remove(..))
+                        | Ok(Command::Ignored(..))
                 );
                 let mut notify = command.is_ok();
                 engine.measure();
@@ -291,6 +310,38 @@ impl Player {
                     engine.flush_statistics();
                 }
                 match command {
+                    Ok(Command::Ignored(ids)) => {
+                        if engine
+                            .queue
+                            .current()
+                            .is_some_and(|id| ids.contains(&id) && !engine.queue.is_ignored(id))
+                        {
+                            let current = engine.queue.current();
+                            for id in &ids {
+                                if Some(*id) != current {
+                                    engine.queue.remove(*id);
+                                }
+                            }
+                            let pool: Vec<_> = engine
+                                .library
+                                .iter()
+                                .filter(|track| !ids.contains(&track.id))
+                                .map(|track| track.id)
+                                .collect();
+                            if engine.queue.extend_from_library(&pool, engine.autoplay) {
+                                for track in &engine.library {
+                                    engine.tracks.insert(track.id, track.path.clone());
+                                }
+                            }
+                        }
+                        if engine.queue.set_ignored(ids) {
+                            engine.play_current();
+                        }
+                    }
+                    Ok(Command::Library(tracks, autoplay)) => {
+                        engine.library = tracks;
+                        engine.autoplay = autoplay;
+                    }
                     Ok(Command::Start(tracks, selected)) => {
                         engine
                             .queue
@@ -323,6 +374,7 @@ impl Player {
                         engine.tracks.clear();
                     }
                     Ok(Command::Next) => {
+                        engine.extend_queue();
                         engine.queue.advance();
                         engine.play_current();
                     }
@@ -379,6 +431,9 @@ impl Player {
                         }
                     }
                     Ok(Command::Remove(id, reply)) => {
+                        if reply.is_some() {
+                            engine.library.retain(|track| track.id != id);
+                        }
                         engine.remove(id);
                         acknowledge = reply;
                     }
@@ -388,6 +443,7 @@ impl Player {
                 // Advance here, independently of UI redraw timing.
                 if engine.sink.as_ref().is_some_and(Sink::empty) {
                     engine.flush_statistics();
+                    engine.extend_queue();
                     engine.queue.finish_track();
                     engine.play_current();
                     queue_changed = true;
@@ -443,6 +499,12 @@ impl Player {
             transport_observers,
             change_observers,
         }
+    }
+    pub fn set_library(&self, tracks: Vec<PlaybackTrack>, autoplay: bool) {
+        let _ = self.sender.send(Command::Library(tracks, autoplay));
+    }
+    pub fn set_ignored(&self, ids: std::collections::HashSet<i64>) {
+        let _ = self.sender.send(Command::Ignored(ids));
     }
     pub fn start(&self, tracks: Vec<PlaybackTrack>, selected: i64) {
         let _ = self.sender.send(Command::Start(tracks, selected));

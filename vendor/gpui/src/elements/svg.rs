@@ -107,7 +107,10 @@ impl Element for Svg {
             window,
             cx,
             |style, window, cx| {
-                if let Some((path, color)) = self.path.as_ref().zip(style.text.color) {
+                // Icons inherit the current text color, just like text elements.
+                // Requiring an explicit local color silently drops SVGs inside buttons.
+                if let Some(path) = self.path.as_ref() {
+                    let color = style.text.color.unwrap_or_else(|| window.text_style().color);
                     let transformation = self
                         .transformation
                         .as_ref()

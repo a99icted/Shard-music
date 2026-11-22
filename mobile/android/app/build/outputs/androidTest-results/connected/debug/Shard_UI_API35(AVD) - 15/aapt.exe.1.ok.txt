@@ -1,13 +1,13 @@
 EXECUTING: C:\Users\a99icted\AppData\Local\Android\Sdk\build-tools\35.0.0\aapt.exe dump badging Z:\developing\Lozex\mobile\android\app\build\outputs\apk\debug\app-x86_64-debug.apk
-CURRENT_WORKING_DIRECTORY: Z:\developing\Lozex\mobile\android
-START_TIME: 2026-11-18 17:21:47.480
-START_TIME-NANOS: 2026-11-18 17:21:47.480426200
+CURRENT_WORKING_DIRECTORY: Z:\developing\Lozex
+START_TIME: 2026-11-22 17:10:46.836
+START_TIME-NANOS: 2026-11-22 17:10:46.836364800
 ENVIRONMENT:
 
 *****************************************
 STDOUT/STDERR BELOW
 ===================
-package: name='music.shard.mobile' versionCode='8' versionName='0.1.7' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='music.shard.mobile' versionCode='9' versionName='0.1.8' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 sdkVersion:'26'
 targetSdkVersion:'35'
 uses-permission: name='android.permission.INTERNET'
@@ -137,7 +137,7 @@ locales: '--_--' 'af' 'am' 'ar' 'as' 'az' 'be' 'bg' 'bn' 'bs' 'ca' 'cs' 'da' 'de
 densities: '120' '160' '240' '320' '480' '640' '65534'
 native-code: 'x86_64'
 ===================
-END_TIME: 2026-11-18 17:21:47.881
-END_TIME-NANOS: 2026-11-18 17:21:47.881739900
-DURATION: 401ms
+END_TIME: 2026-11-22 17:10:46.989
+END_TIME-NANOS: 2026-11-22 17:10:46.989698700
+DURATION: 153ms
 EXIT CODE: 0

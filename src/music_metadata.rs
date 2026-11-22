@@ -10,6 +10,7 @@ use std::{
 };
 #[derive(Clone, Debug)]
 pub(crate) struct CollectionTrack {
+    pub artwork_url: Option<String>,
     pub title: String,
     pub artist: String,
     pub url: url::Url,
@@ -17,6 +18,7 @@ pub(crate) struct CollectionTrack {
 }
 
 pub(crate) struct Collection {
+    pub artwork_url: Option<String>,
     pub title: String,
     pub tracks: Vec<CollectionTrack>,
     pub is_collection: bool,
@@ -43,6 +45,9 @@ impl MetadataSource {
     }
 }
 impl YoutubeSource for MetadataSource {
+    fn artwork_url(&self) -> Option<&str> {
+        self.collection.artwork_url.as_deref()
+    }
     fn playlist(&self, _: &url::Url, _: &AtomicBool) -> Result<YoutubePlaylist> {
         Ok(self.entries())
     }
@@ -75,6 +80,11 @@ impl YoutubeSource for MetadataSource {
                     let _ = attempt.keep();
                     audio.info.track = Some(metadata.title.clone());
                     audio.info.artist = Some(metadata.artist.clone());
+                    audio.info.thumbnail = metadata
+                        .artwork_url
+                        .clone()
+                        .or_else(|| self.collection.artwork_url.clone())
+                        .or(audio.info.thumbnail);
                     return Ok(audio);
                 }
                 Err(error) => last_error = Some(error),

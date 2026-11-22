@@ -9,6 +9,7 @@ enum WriteCommand {
 }
 
 /// One ordered writer keeps fsync and atomic replacement away from input handlers.
+#[derive(Clone)]
 pub struct PreferencesWriter {
     sender: std::sync::mpsc::Sender<WriteCommand>,
     error: std::sync::Arc<std::sync::Mutex<Option<String>>>,
@@ -79,6 +80,7 @@ pub struct Preferences {
     pub volume: f32,
     pub shuffle: bool,
     pub queue_visible: bool,
+    pub autoplay: bool,
     pub theme: crate::theme::Theme,
     pub repeat: crate::queue::RepeatMode,
 }
@@ -96,6 +98,7 @@ impl Default for Preferences {
             volume: 0.7,
             shuffle: false,
             queue_visible: true,
+            autoplay: false,
             theme: crate::theme::Theme::Forest,
             repeat: crate::queue::RepeatMode::Off,
         }
@@ -108,6 +111,9 @@ impl Preferences {
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default();
+        if preferences.autoplay {
+            preferences.shuffle = true;
+        }
         preferences.volume = if preferences.volume.is_finite() {
             preferences.volume.clamp(0., 1.)
         } else {

@@ -5287,12 +5287,13 @@ dependencies = [
 
 [[package]]
 name = "shard"
-version = "0.1.4"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
  "directories",
  "embed-resource",
+ "futures",
  "gpui",
  "if-addrs",
  "image",

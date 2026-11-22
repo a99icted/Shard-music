@@ -9040,7 +9040,6 @@ androidx.compose.material.icons.filled.BlenderKt
 androidx.compose.material.icons.filled.BlindKt
 androidx.compose.material.icons.filled.BlindsClosedKt
 androidx.compose.material.icons.filled.BlindsKt
-androidx.compose.material.icons.filled.BlockKt
 androidx.compose.material.icons.filled.BloodtypeKt
 androidx.compose.material.icons.filled.BluetoothAudioKt
 androidx.compose.material.icons.filled.BluetoothConnectedKt
@@ -9295,7 +9294,6 @@ androidx.compose.material.icons.filled.DeblurKt
 androidx.compose.material.icons.filled.DeckKt
 androidx.compose.material.icons.filled.DehazeKt
 androidx.compose.material.icons.filled.DeleteForeverKt
-androidx.compose.material.icons.filled.DeleteKt
 androidx.compose.material.icons.filled.DeleteOutlineKt
 androidx.compose.material.icons.filled.DeleteSweepKt
 androidx.compose.material.icons.filled.DeliveryDiningKt
@@ -34467,7 +34465,6 @@ androidx.media3.common.BasePlayer:
     public final void addMediaItem(androidx.media3.common.MediaItem)
     public final java.lang.Object getCurrentManifest()
     public final int getCurrentWindowIndex()
-    public final androidx.media3.common.MediaItem getMediaItemAt(int)
     public final int getNextWindowIndex()
     public final int getPreviousWindowIndex()
     public final boolean hasNext()
@@ -35367,7 +35364,6 @@ androidx.media3.common.Player:
     public abstract void clearVideoTextureView(android.view.TextureView)
     public abstract java.lang.Object getCurrentManifest()
     public abstract int getCurrentWindowIndex()
-    public abstract androidx.media3.common.MediaItem getMediaItemAt(int)
     public abstract int getNextMediaItemIndex()
     public abstract int getNextWindowIndex()
     public abstract int getPreviousMediaItemIndex()
@@ -50386,7 +50382,6 @@ kotlin.collections.CollectionsKt__MutableCollectionsJVMKt:
 kotlin.collections.CollectionsKt__MutableCollectionsKt:
     public void <init>()
     public static final boolean addAll(java.util.Collection,kotlin.sequences.Sequence)
-    public static final java.util.Collection convertToListIfNotCollection(java.lang.Iterable)
     private static final boolean filterInPlace$CollectionsKt__MutableCollectionsKt(java.util.List,kotlin.jvm.functions.Function1,boolean)
     private static final void minusAssign(java.util.Collection,java.lang.Iterable)
     private static final void minusAssign(java.util.Collection,java.lang.Object)
@@ -50854,7 +50849,6 @@ kotlin.collections.SetsKt__SetsKt:
     public static final varargs java.util.Set setOfNotNull(java.lang.Object[])
 kotlin.collections.SetsKt___SetsKt:
     public void <init>()
-    public static final java.util.Set minus(java.util.Set,java.lang.Iterable)
     public static final java.util.Set minus(java.util.Set,kotlin.sequences.Sequence)
     public static final java.util.Set minus(java.util.Set,java.lang.Object[])
     private static final java.util.Set minusElement(java.util.Set,java.lang.Object)
@@ -55791,6 +55785,8 @@ music.shard.mobile.PlaybackActions:
     public static final java.lang.String FAVORITE
     public static final java.lang.String REPEAT
     public static final java.lang.String SHUFFLE
+music.shard.mobile.PlaybackServiceKt:
+    public static final java.lang.String DIRECT_PLAY
 music.shard.mobile.PlayerNavigation:
     public static final java.lang.String OPEN_PLAYER
 music.shard.mobile.Playlist:
@@ -55808,7 +55804,7 @@ music.shard.mobile.R$drawable:
 music.shard.mobile.R$style
 music.shard.mobile.R$xml
 music.shard.mobile.R
-music.shard.mobile.ShardAppKt$ShardApp$1$26$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$2
+music.shard.mobile.ShardAppKt$ShardApp$1$25$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$2
 music.shard.mobile.ShardAppKt$StatisticsScreen$lambda$42$lambda$41$$inlined$items$default$2
 music.shard.mobile.ShardApplication:
     public static final int $stable
@@ -60044,7 +60040,7 @@ androidx.collection.LruCache:
     public static int maxSize()
     public static java.lang.Object remove()
     public static int size()
-androidx.collection.MutableFloatSet$$InternalSyntheticThrowCCEIfNotNull$361$43182fb1594507a514bf18492a0543eba5365d3c2285497da49e3ee6a9723e21$0
+androidx.collection.MutableFloatSet$$InternalSyntheticThrowCCEIfNotNull$367$43182fb1594507a514bf18492a0543eba5365d3c2285497da49e3ee6a9723e21$0
 androidx.collection.MutableFloatSet
 androidx.collection.MutableIntIntMap:
     public static void adjustStorage()
@@ -60685,7 +60681,7 @@ androidx.compose.animation.core.TransitionKt$SeekableStateObserver$2$1:
     public final void invoke$5()
 androidx.compose.animation.core.TransitionKt$SeekableStateObserver$2:
     public static androidx.compose.runtime.snapshots.SnapshotStateObserver invoke()
-androidx.compose.animation.core.TransitionKt$SeekableTransitionStateTotalDurationChanged$1$$InternalSyntheticOutline$362$5b87162324b9c91d90dfa8e687b3420dbfcde098c4f8c6f2c9a396cb91339b00$0
+androidx.compose.animation.core.TransitionKt$SeekableTransitionStateTotalDurationChanged$1$$InternalSyntheticOutline$368$5b87162324b9c91d90dfa8e687b3420dbfcde098c4f8c6f2c9a396cb91339b00$0
 androidx.compose.animation.core.TransitionKt$SeekableTransitionStateTotalDurationChanged$1$$InternalSyntheticThrowCCEIfNotNull$17$5b87162324b9c91d90dfa8e687b3420dbfcde098c4f8c6f2c9a396cb91339b00$0
 androidx.compose.animation.core.TransitionKt$SeekableTransitionStateTotalDurationChanged$1
 androidx.compose.animation.core.TransitionKt$createTransitionAnimation$1$1:
@@ -62669,7 +62665,7 @@ androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimation$release$2
 androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimation$release$3
 androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimation
 androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimationKt
-androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimator$$InternalSyntheticThrowCCEIfNotNull$361$65f6bfb675dfa8c67fe1aec306f0bd528ed450d4cfbbc5c537f702d406576f81$0
+androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimator$$InternalSyntheticThrowCCEIfNotNull$367$65f6bfb675dfa8c67fe1aec306f0bd528ed450d4cfbbc5c537f702d406576f81$0
 androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimator$DisplayingDisappearingItemsElement:
     public static androidx.compose.foundation.lazy.layout.LazyLayoutItemAnimator$DisplayingDisappearingItemsNode create()
     public static void update$25()
@@ -64227,6 +64223,8 @@ androidx.compose.material.icons.filled.AlbumKt:
     static void <clinit>()
 androidx.compose.material.icons.filled.BatteryChargingFullKt:
     static void <clinit>()
+androidx.compose.material.icons.filled.BlockKt:
+    static void <clinit>()
 androidx.compose.material.icons.filled.CheckCircleKt:
     static void <clinit>()
 androidx.compose.material.icons.filled.CheckKt:
@@ -64238,6 +64236,8 @@ androidx.compose.material.icons.filled.CircleKt:
 androidx.compose.material.icons.filled.CloseKt:
     static void <clinit>()
 androidx.compose.material.icons.filled.ContentCopyKt:
+    static void <clinit>()
+androidx.compose.material.icons.filled.DeleteKt:
     static void <clinit>()
 androidx.compose.material.icons.filled.DevicesKt:
     static void <clinit>()
@@ -72160,10 +72160,10 @@ androidx.compose.ui.platform.AndroidComposeView:
     public static boolean startDrag-12SF9DM()
 androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticLambda$3$c2bede89dd047365e56b025d4954e8b2c5f680c5fc614d2ac7466fdcab6c6930$0:
     public final synthetic androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$sortByGeometryGroupings$2 f$0
-androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$251$429b99719615f26f70d2226afaa7db04a7ad05455862d34ba7d22b40d257d829$0
-androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$254$5b888b6b8a06c044ebff764588480198db071ec6f17d78b86d37ef1d3b96bbab$0
-androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$254$5b888b6b8a06c044ebff764588480198db071ec6f17d78b86d37ef1d3b96bbab$1
-androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$256$a4d911081e3242b8e95ee28be239d6f311aa2e66f7281e89afd4af97344dfc3d$0
+androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$249$429b99719615f26f70d2226afaa7db04a7ad05455862d34ba7d22b40d257d829$0
+androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$252$5b888b6b8a06c044ebff764588480198db071ec6f17d78b86d37ef1d3b96bbab$0
+androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$252$5b888b6b8a06c044ebff764588480198db071ec6f17d78b86d37ef1d3b96bbab$1
+androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$InternalSyntheticThrowCCEIfNotNull$254$a4d911081e3242b8e95ee28be239d6f311aa2e66f7281e89afd4af97344dfc3d$0
 androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$Api24Impl:
     public static final androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$Api24Impl INSTANCE
     static void <clinit>()
@@ -72504,7 +72504,7 @@ androidx.compose.ui.platform.OutlineResolver:
     public static void updateCacheWithRect()
     public static void updateCacheWithRoundRect()
 androidx.compose.ui.platform.PlatformTextInputMethodRequest
-androidx.compose.ui.platform.PlatformTextInputModifierNodeKt$$InternalSyntheticThrowCCEIfNotNull$237$2ed3c0b113b81a457a962d97ce7e17b96d3c42f6f70edfec8b9b2fe9251b3070$0
+androidx.compose.ui.platform.PlatformTextInputModifierNodeKt$$InternalSyntheticThrowCCEIfNotNull$236$2ed3c0b113b81a457a962d97ce7e17b96d3c42f6f70edfec8b9b2fe9251b3070$0
 androidx.compose.ui.platform.PlatformTextInputModifierNodeKt$LocalChainedPlatformTextInputInterceptor$1:
     public static void invoke$76()
 androidx.compose.ui.platform.PlatformTextInputSession:
@@ -76196,12 +76196,12 @@ androidx.media3.common.BasePlayer:
     public abstract void clearMediaItems()
     public abstract int getBufferedPercentage()
     public abstract long getCurrentLiveOffset()
-    public abstract int getMediaItemCount()
+    public abstract androidx.media3.common.MediaItem getMediaItemAt(int)
+    public final int getMediaItemCount()
     public final int getNextMediaItemIndex()
     public final int getPreviousMediaItemIndex()
     public final int getRepeatModeForNavigation()
     public abstract void moveMediaItem(int,int)
-    public abstract void removeMediaItem(int)
     public final void repeatCurrentMediaItem(int)
     public abstract void replaceMediaItem(int,androidx.media3.common.MediaItem)
     public abstract void seekBack()
@@ -76483,6 +76483,7 @@ androidx.media3.common.Player:
     public abstract int getDeviceVolume()
     public abstract long getDuration()
     public abstract long getMaxSeekToPreviousPosition()
+    public abstract androidx.media3.common.MediaItem getMediaItemAt(int)
     public abstract int getMediaItemCount()
     public abstract androidx.media3.common.MediaMetadata getMediaMetadata()
     public abstract androidx.media3.common.PlaybackParameters getPlaybackParameters()
@@ -81139,6 +81140,7 @@ androidx.media3.session.MediaSession$Api31
 androidx.media3.session.MediaSession$Builder$1
 androidx.media3.session.MediaSession$Builder
 androidx.media3.session.MediaSession$BuilderBase
+androidx.media3.session.MediaSession$Callback$$InternalSyntheticLambda$4$d18998bdee2be0f7434a39970739aa832f1e7059d38bdf4eec28660cd53bdc35$0
 androidx.media3.session.MediaSession$Callback
 androidx.media3.session.MediaSession$ConnectionResult$AcceptedResultBuilder
 androidx.media3.session.MediaSession$ConnectionResult:
@@ -82250,7 +82252,7 @@ androidx.room.AutoClosingRoomOpenHelper:
     public final androidx.sqlite.db.SupportSQLiteDatabase getWritableDatabase()
     public final void setWriteAheadLoggingEnabled(boolean)
 androidx.room.AutoClosingRoomOpenHelperFactory
-androidx.room.CoroutinesRoom$Companion$createFlow$1$1$$InternalSyntheticThrowCCEIfNotNull$239$8d90a933deb753ecdbd5d628f30cc89c435df6dac4f82b9d30a968ed416b5fc6$0
+androidx.room.CoroutinesRoom$Companion$createFlow$1$1$$InternalSyntheticThrowCCEIfNotNull$292$8d90a933deb753ecdbd5d628f30cc89c435df6dac4f82b9d30a968ed416b5fc6$0
 androidx.room.CoroutinesRoom$Companion$createFlow$1$1$1:
     public final java.lang.Object invoke$3()
 androidx.room.CoroutinesRoom$Companion$createFlow$1$1:
@@ -85847,7 +85849,6 @@ kotlin.collections.ArraysKt___ArraysJvmKt:
 kotlin.collections.ArraysKt___ArraysKt
 kotlin.collections.ArraysUtilJVM
 kotlin.collections.CollectionsKt:
-    public static java.lang.Object getOrNull(java.util.List,int)
     public static final java.util.List toMutableList(java.lang.Iterable)
 kotlin.collections.CollectionsKt__CollectionsJVMKt:
     public static kotlin.collections.builders.ListBuilder createListBuilder()
@@ -86371,7 +86372,7 @@ kotlinx.coroutines.CoroutineExceptionHandler:
 kotlinx.coroutines.CoroutineExceptionHandlerKt:
     public static final java.lang.Throwable handlerException(java.lang.Throwable,java.lang.Throwable)
 kotlinx.coroutines.CoroutineId$$InternalSyntheticThrowCCEIfNotNull$35$db4fcf294f73e0414b61d779f72a560fad56831e560e6b71def36fecaf64a8d1$0
-kotlinx.coroutines.CoroutineId$$InternalSyntheticThrowCCEIfNotNull$361$a7d8b984f14ef6811fc36f0d030a1c8a7f27075d192601697212118d266ca07a$0
+kotlinx.coroutines.CoroutineId$$InternalSyntheticThrowCCEIfNotNull$367$a7d8b984f14ef6811fc36f0d030a1c8a7f27075d192601697212118d266ca07a$0
 kotlinx.coroutines.CoroutineId$Key
 kotlinx.coroutines.CoroutineId
 kotlinx.coroutines.CoroutineName:
@@ -86795,7 +86796,7 @@ kotlinx.coroutines.flow.ReadonlyStateFlow:
 kotlinx.coroutines.flow.SafeFlow:
     public static java.lang.Object collectSafely()
 kotlinx.coroutines.flow.SharedFlow
-kotlinx.coroutines.flow.SharedFlowImpl$$InternalSyntheticThrowCCEIfNotNull$234$8a81ae7abf994ef8d5da0c3a1e1fcc00bff1251b789a1cb954e12c66d854807b$0
+kotlinx.coroutines.flow.SharedFlowImpl$$InternalSyntheticThrowCCEIfNotNull$288$8a81ae7abf994ef8d5da0c3a1e1fcc00bff1251b789a1cb954e12c66d854807b$0
 kotlinx.coroutines.flow.SharedFlowImpl$WhenMappings
 kotlinx.coroutines.flow.SharedFlowImpl:
     public static void cancelEmitter()
@@ -86843,7 +86844,7 @@ kotlinx.coroutines.flow.StartedWhileSubscribed:
     public final long replayExpiration
     public final long stopTimeout
     public final kotlinx.coroutines.flow.Flow command(kotlinx.coroutines.flow.internal.SubscriptionCountStateFlow)
-kotlinx.coroutines.flow.StateFlowImpl$$InternalSyntheticThrowCCEIfNotNull$234$f1d1f40a1c8fc04c0a8d71575b6c25dc238f9224ed939db2b509a92e2c81cbda$0
+kotlinx.coroutines.flow.StateFlowImpl$$InternalSyntheticThrowCCEIfNotNull$288$f1d1f40a1c8fc04c0a8d71575b6c25dc238f9224ed939db2b509a92e2c81cbda$0
 kotlinx.coroutines.flow.StateFlowImpl:
     public static kotlinx.coroutines.flow.StateFlowSlot createSlot()
     public static kotlinx.coroutines.flow.StateFlowSlot[] createSlotArray()
@@ -87037,7 +87038,7 @@ kotlinx.coroutines.internal.ThreadContextKt$countAll$1:
     public static java.lang.Object invoke$58()
 kotlinx.coroutines.internal.ThreadContextKt$findOne$1:
     public static void invoke$98()
-kotlinx.coroutines.internal.ThreadContextKt$updateState$1$$InternalSyntheticThrowCCEIfNotNull$361$3ff7ef4e574584d34e294bf8ac548819e9de353a79a9bbbdd8ea1b7dd939fd97$0
+kotlinx.coroutines.internal.ThreadContextKt$updateState$1$$InternalSyntheticThrowCCEIfNotNull$367$3ff7ef4e574584d34e294bf8ac548819e9de353a79a9bbbdd8ea1b7dd939fd97$0
 kotlinx.coroutines.internal.ThreadContextKt$updateState$1:
     public static kotlinx.coroutines.internal.ThreadState invoke()
 kotlinx.coroutines.internal.ThreadContextKt:
@@ -87209,6 +87210,8 @@ music.shard.mobile.ComposableSingletons$SettingsScreenKt:
     public static kotlin.jvm.functions.Function2 getLambda-1$app_release()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-1$1:
     public final void invoke$2()
+music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-10$1:
+    public final void invoke$2()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-2$1:
     public final void invoke$42()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-3$1:
@@ -87216,11 +87219,11 @@ music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-3$1:
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-4$1:
     public final void invoke$2()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-5$1:
-    public final void invoke$46()
+    public final void invoke$2()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-6$1:
     public final void invoke$46()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-7$1:
-    public final void invoke$2()
+    public final void invoke$46()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-8$1:
     public final void invoke$2()
 music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-9$1:
@@ -87228,12 +87231,13 @@ music.shard.mobile.ComposableSingletons$ShardAppKt$lambda-9$1:
 music.shard.mobile.ComposableSingletons$ShardAppKt:
     public static final music.shard.mobile.ComposableSingletons$ShardAppKt INSTANCE
     public static kotlin.jvm.functions.Function2 getLambda-1$app_release()
+    public static kotlin.jvm.functions.Function2 getLambda-10$app_release()
     public static kotlin.jvm.functions.Function3 getLambda-2$app_release()
     public static kotlin.jvm.functions.Function2 getLambda-3$app_release()
     public static kotlin.jvm.functions.Function2 getLambda-4$app_release()
-    public static kotlin.jvm.functions.Function3 getLambda-5$app_release()
+    public static kotlin.jvm.functions.Function2 getLambda-5$app_release()
     public static kotlin.jvm.functions.Function3 getLambda-6$app_release()
-    public static kotlin.jvm.functions.Function2 getLambda-7$app_release()
+    public static kotlin.jvm.functions.Function3 getLambda-7$app_release()
     public static kotlin.jvm.functions.Function2 getLambda-8$app_release()
     public static kotlin.jvm.functions.Function2 getLambda-9$app_release()
 music.shard.mobile.Core$call$2:
@@ -87249,8 +87253,60 @@ music.shard.mobile.Core:
     public static final int $stable
     public static kotlinx.coroutines.flow.StateFlow getLibraryChanges()
     public static java.lang.Object initialize()
+    public static void notifyLibraryChanged$app_release()
     public static void setContext()
     public static java.lang.Object stage(android.net.Uri,boolean,kotlin.coroutines.jvm.internal.SuspendLambda)
+music.shard.mobile.DeviceAndIgnoredSettingsKt$ConnectedDevices$1$1$1$1:
+    public final void invoke$12()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$ConnectedDevices$1$1$1:
+    public final void invoke$99()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$ConnectedDevices$1$1$2$1$2:
+    public final void invoke$42()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$ConnectedDevices$1$1$2$1:
+    public final void invoke$12()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$ConnectedDevices$1$1$2:
+    public final void invoke$99()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$1$1$2:
+    public final void invoke$42()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$1$1:
+    public final void invoke$12()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$1:
+    public final void invoke$99()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$3$1$2$1$1:
+    public final void invoke()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$3$1$2$2:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$3$1$2$3$1:
+    public final void invoke()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$3$1$2$4:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$3$1$2$5$1:
+    public final void invoke()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$1$1$3$1$2$6:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$3$2:
+    public final void invoke$42()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$3:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$4$2:
+    public final void invoke$42()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$4:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$5:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$6:
+    public final void invoke$2()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$lambda$18$lambda$17$$inlined$items$default$1
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$lambda$18$lambda$17$$inlined$items$default$2:
+    public final java.lang.Object invoke$13()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$lambda$18$lambda$17$$inlined$items$default$3:
+    public final synthetic music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$lambda$18$lambda$17$$inlined$items$default$1 $contentType
+    public final java.lang.Object invoke$13()
+music.shard.mobile.DeviceAndIgnoredSettingsKt$IgnoredSettings$lambda$18$lambda$17$$inlined$items$default$4:
+    public final void invoke$18()
+music.shard.mobile.DeviceAndIgnoredSettingsKt:
+    public static final boolean IgnoredSettings$lambda$5(androidx.compose.runtime.MutableState)
+    public static final void IgnoredSettings$lambda$6(androidx.compose.runtime.MutableState,boolean)
 music.shard.mobile.DownloadDuplicatesDialogKt$$InternalSyntheticLambda$5$2545c30a1686b136cd59575f04379ed65aa342e4dd13d3e7aeca97ec4982b4b9$0:
     public final synthetic int f$4
 music.shard.mobile.DownloadDuplicatesDialogKt$DownloadDuplicatesDialog$1$2:
@@ -87354,17 +87410,17 @@ music.shard.mobile.LibraryHomeKt$$InternalSyntheticLambda$9$53bf27a290a474c27f96
 music.shard.mobile.LibraryHomeKt$CollectionShortcut$1:
     public final void invoke$12()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$2:
-    public final void invoke$99()
+    public final void invoke$100()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$4$1$1:
     public final void invoke$42()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$4:
-    public final void invoke$99()
+    public final void invoke$100()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$6$1$1$1:
     public final void invoke$42()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$6$1:
     public final void invoke$2()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$6:
-    public final void invoke$99()
+    public final void invoke$100()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$8$1$1:
     public final void invoke()
 music.shard.mobile.LibraryHomeKt$LibraryHome$1$1$1$8$2:
@@ -87403,6 +87459,9 @@ music.shard.mobile.LibraryModel$cancelPendingDownload$1:
 music.shard.mobile.LibraryModel$command$1:
     public final kotlin.coroutines.Continuation create()
     public final java.lang.Object invoke$2()
+music.shard.mobile.LibraryModel$deleteIgnored$1:
+    public final kotlin.coroutines.Continuation create()
+    public final java.lang.Object invoke$2()
 music.shard.mobile.LibraryModel$forgetDownload$1:
     public final kotlin.coroutines.Continuation create()
     public final java.lang.Object invoke$2()
@@ -87417,6 +87476,9 @@ music.shard.mobile.LibraryModel$perform$1:
 music.shard.mobile.LibraryModel$refresh$1:
     public final kotlin.coroutines.Continuation create()
     public final java.lang.Object invoke$2()
+music.shard.mobile.LibraryModel$refreshArtwork$1:
+    public final kotlin.coroutines.Continuation create()
+    public final java.lang.Object invoke$2()
 music.shard.mobile.LibraryModel$resolveDownloads$1:
     public final kotlin.coroutines.Continuation create()
     public final java.lang.Object invoke$2()
@@ -87426,6 +87488,9 @@ music.shard.mobile.LibraryModel$retryDownload$1:
 music.shard.mobile.LibraryModel$toggleFavorite$1:
     public final kotlin.coroutines.Continuation create()
     public final java.lang.Object invoke$2()
+music.shard.mobile.LibraryModel$toggleIgnored$1:
+    public final kotlin.coroutines.Continuation create()
+    public final java.lang.Object invoke$2()
 music.shard.mobile.LibraryModel:
     static void <clinit>()
     public static final void access$setBusy(music.shard.mobile.LibraryModel,int)
@@ -87433,23 +87498,27 @@ music.shard.mobile.LibraryModel:
     public static void bind()
     public static void cancelDownloads()
     public static void cancelPendingDownload()
-    public static void deleteTrack()
+    public static void deleteIgnored()
     public static void dismissDownloadReport()
+    public static void enqueue()
     public static void forgetDownload()
+    public final boolean getArtworkBusy()
     public final int getBusy()
     public final java.lang.String getDownloadDetails()
     public final java.lang.String getDownloadMessage()
-    public final org.json.JSONObject getDownloadPending()
+    public static org.json.JSONObject getDownloadPending()
     public static java.lang.String getDownloaderVersion()
     public final java.util.List getFailedDownloads$app_release()
-    public final music.shard.mobile.Snapshot getLibrary()
-    public final java.lang.String getMessage()
+    public static java.lang.String getMessage()
     public final int getPlayerRevision()
     public static void image()
     public final void importFiles(java.util.List,java.lang.Long)
     public static synthetic void perform$default(music.shard.mobile.LibraryModel,kotlin.jvm.functions.Function1)
+    public static synthetic void play$default(music.shard.mobile.LibraryModel,java.util.List,long)
+    public static void refreshArtwork()
     public static void resolveDownloads()
     public static void retryDownload()
+    public final void setArtworkBusy(boolean)
     public static void setBusy()
     public static void setController()
     public static void setDownloadActive()
@@ -87461,6 +87530,7 @@ music.shard.mobile.LibraryModel:
     public static void setLibrary()
     public final void setPlayerRevision(int)
     public final void toggleFavorite(long)
+    public final void toggleIgnored(long)
 music.shard.mobile.MainActivity$onCreate$2:
     public final void invoke$2()
 music.shard.mobile.MainActivity$special$$inlined$viewModels$default$1:
@@ -87490,9 +87560,12 @@ music.shard.mobile.PlaybackService$onCreate$4$onAddMediaItems$1:
     public final java.lang.Object invoke$3()
 music.shard.mobile.PlaybackService$onCreate$4$onCustomCommand$1:
     public final java.lang.Object invoke$3()
+music.shard.mobile.PlaybackService$onCreate$4$onSetMediaItems$1:
+    public final java.lang.Object invoke$3()
 music.shard.mobile.PlaybackService$onCreate$4:
     public final androidx.media3.session.MediaSession$ConnectionResult onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession$ControllerInfo)
     public final com.google.common.util.concurrent.ListenableFuture onCustomCommand(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession$ControllerInfo,androidx.media3.session.SessionCommand,android.os.Bundle)
+    public final com.google.common.util.concurrent.SettableFuture onSetMediaItems(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession$ControllerInfo,com.google.common.collect.RegularImmutableList,int,long)
 music.shard.mobile.PlaybackService$onCreate$5$1:
     public final java.lang.Object invoke$60()
 music.shard.mobile.PlaybackService$onCreate$5:
@@ -87502,9 +87575,12 @@ music.shard.mobile.PlaybackService:
     static void <clinit>()
     public static final void access$savePreference(music.shard.mobile.PlaybackService,java.lang.String,java.lang.Object)
     public final androidx.media3.session.MediaSession onGetSession()
+    public static synthetic void pruneIgnored$default(music.shard.mobile.PlaybackService,boolean)
     public static synthetic androidx.media3.session.CommandButton refreshMediaButtons$button$default(java.lang.Long,int,java.lang.String,java.lang.String)
+    public static java.lang.Object resolveMediaItems()
     public static void savePreference()
 music.shard.mobile.PlaybackServiceKt:
+    public static synthetic androidx.media3.common.MediaItem mediaItem$default(music.shard.mobile.Track)
     public static final int nextRepeatMode(int)
 music.shard.mobile.PlayerNavigation:
     public static final int $stable
@@ -87533,13 +87609,13 @@ music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$1$1$1$1$1$2:
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$1$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$1:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$2$1$1$1$2:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$2$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$2:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$3$1$2:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$3$1$6:
@@ -87547,17 +87623,25 @@ music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$3$1$6:
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$3$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$3:
-    public final void invoke$100()
+    public final void invoke$99()
+music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$4$1$2:
+    public final void invoke$42()
+music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$4$1$4:
+    public final void invoke$42()
+music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$4$1:
+    public final void invoke$12()
+music.shard.mobile.SettingsScreenKt$AppearanceSettings$1$1$4:
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$1$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$1:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$2$1$2:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$2$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$2:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$3$1$3:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$3$1$5:
@@ -87567,7 +87651,7 @@ music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$3$1$7:
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$3$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$3:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$4$1$1$1$1$2:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$4$1$1$1$1$4:
@@ -87575,7 +87659,7 @@ music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$4$1$1$1$1$4:
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$4$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$1$1$4:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$3$2:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$3:
@@ -87587,26 +87671,29 @@ music.shard.mobile.SettingsScreenKt$DownloadSettings$4:
 music.shard.mobile.SettingsScreenKt$DownloadSettings$5:
     public final void invoke$2()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$6$1$1$1:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$DownloadSettings$6:
     public final void invoke$2()
 music.shard.mobile.SettingsScreenKt$SettingsCard$1:
     public final void invoke$2()
-music.shard.mobile.SettingsScreenKt$SettingsScreen$1$1$1$2:
-    public final void invoke$2()
 music.shard.mobile.SettingsScreenKt$SettingsScreen$1$1:
+    public int label
+    public final java.lang.Object invoke$3()
+music.shard.mobile.SettingsScreenKt$SettingsScreen$2$1$1$2:
     public final void invoke$2()
-music.shard.mobile.SettingsScreenKt$SettingsScreen$1$2$1$1$1:
+music.shard.mobile.SettingsScreenKt$SettingsScreen$2$1:
+    public final void invoke$2()
+music.shard.mobile.SettingsScreenKt$SettingsScreen$2$2$1$1$1:
     public final void invoke$12()
-music.shard.mobile.SettingsScreenKt$SettingsScreen$1$2$1$1:
-    public final void invoke$100()
+music.shard.mobile.SettingsScreenKt$SettingsScreen$2$2$1$1:
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$SyncSettings$2$1$1:
     public final kotlin.coroutines.Continuation create()
     public final java.lang.Object invoke$2()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$1$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$1:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$2$1$12:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$2$1$2:
@@ -87620,20 +87707,20 @@ music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$2$1$8:
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$2$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$2:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$3$1$3:
     public final void invoke$42()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$3$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$3:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$4$1:
     public final void invoke$12()
 music.shard.mobile.SettingsScreenKt$SyncSettings$3$1$4:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.SettingsScreenKt:
-    public static final void DownloadSettings$lambda$24(androidx.compose.runtime.MutableState,boolean)
-    public static final void SyncSettings$lambda$40(androidx.compose.runtime.MutableState,boolean)
+    public static final void DownloadSettings$lambda$25(androidx.compose.runtime.MutableState,boolean)
+    public static final void SyncSettings$lambda$41(androidx.compose.runtime.MutableState,boolean)
 music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$3$a7cd6718d00fac49d77451f0a01b72ff07feb2bdecd34a262c2187698ea8d971$1:
     public final synthetic int f$2
 music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$5$06edf249b20c1b89ca4e9423bbfca3d059d5a72f0ec6a7021a909dba29346833$0:
@@ -87659,9 +87746,9 @@ music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$6$5dfa2fc2f7653c67eae277d
     public final synthetic int f$5
 music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$6$5dfa2fc2f7653c67eae277dc50d7c8c9d47371302868c2cd53f2e8ac73f84431$2:
     public final synthetic int f$5
-music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$7$9fb5760752f8eba07155385770460e753fecf63960b600ef75a47def37e3fb90$2:
-    public final synthetic int f$12
-    public final synthetic int f$13
+music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$7$c6da8c362a210989961208637baf3e6af2278af4904eb37e4b4e7fd62d706477$2:
+    public final synthetic int f$15
+    public final synthetic int f$16
 music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$7$c801cd03f6f6c72106d832ede0c8c700e8f4ea95aea09457af6c2cb45018a19b$0:
     public final synthetic int f$3
 music.shard.mobile.ShardAppKt$$InternalSyntheticLambda$7$d3e36147c743acdabd608600d306b830315d4cdf7f14429f91472d6bd0505628$1:
@@ -87688,30 +87775,32 @@ music.shard.mobile.ShardAppKt$MiniPlayer$1:
 music.shard.mobile.ShardAppKt$PlayerSheet$1$1:
     public int label
     public final java.lang.Object invoke$3()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$2:
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$10$1$2$1$3:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$4:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$6:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$8:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$9$2:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$9$4$1:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$9$4$3:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$9$4$4:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$6$9$4:
-    public final void invoke$12()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$8:
-    public final void invoke$42()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$9$1$2$1$3:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$PlayerSheet$3$1$9$1$2:
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$10$1$2:
     public final void invoke$18()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$2$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$4:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$6:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$8:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$9$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$9$4$1:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$9$4$3:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$9$4$4:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$7$9$4:
+    public final void invoke$12()
+music.shard.mobile.ShardAppKt$PlayerSheet$3$1$9:
+    public final void invoke$42()
 music.shard.mobile.ShardAppKt$PlayerSheet$3:
     public final void invoke$12()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$1$1$1$1:
@@ -87730,168 +87819,167 @@ music.shard.mobile.ShardAppKt$PlaylistEditDialog$3:
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$1$2:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$1:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$2$2:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$2:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$3$2:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$3:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$4$2:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$4:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$5$2:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$5:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$6:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$7$2:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$7:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$8$1:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4$1$1$8:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$PlaylistEditDialog$4:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$ShardApp$1$1$1:
     public int label
     public final java.lang.Object invoke$3()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$2$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$2$2:
     public final void invoke$42()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$2:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$3:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$3:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$1$1$2$1$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$1$1$2$1$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$1$1$2$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$1$1$2$2:
     public final void invoke$42()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$1$1$3:
-    public final void invoke$100()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$invoke$lambda$4$lambda$3$$inlined$items$default$1
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$invoke$lambda$4$lambda$3$$inlined$items$default$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$1$1$3:
+    public final void invoke$99()
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$invoke$lambda$4$lambda$3$$inlined$items$default$1
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$invoke$lambda$4$lambda$3$$inlined$items$default$2:
     public final java.lang.Object invoke$13()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$invoke$lambda$4$lambda$3$$inlined$items$default$3:
-    public final synthetic music.shard.mobile.ShardAppKt$ShardApp$1$15$4$invoke$lambda$4$lambda$3$$inlined$items$default$1 $contentType
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$invoke$lambda$4$lambda$3$$inlined$items$default$3:
+    public final synthetic music.shard.mobile.ShardAppKt$ShardApp$1$14$4$invoke$lambda$4$lambda$3$$inlined$items$default$1 $contentType
     public final java.lang.Object invoke$13()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4$invoke$lambda$4$lambda$3$$inlined$items$default$4:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4$invoke$lambda$4$lambda$3$$inlined$items$default$4:
     public final void invoke$18()
-music.shard.mobile.ShardAppKt$ShardApp$1$15$4:
+music.shard.mobile.ShardAppKt$ShardApp$1$14$4:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$17$2$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$16$2$2:
     public final void invoke$42()
+music.shard.mobile.ShardAppKt$ShardApp$1$16$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$16$3$2:
+    public final void invoke$42()
+music.shard.mobile.ShardAppKt$ShardApp$1$16$3:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$16$4:
+    public final void invoke$2()
 music.shard.mobile.ShardAppKt$ShardApp$1$17$2:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$17$3$2:
-    public final void invoke$42()
+music.shard.mobile.ShardAppKt$ShardApp$1$17$3$1$1$1:
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$ShardApp$1$17$3:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$17$4:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$18$2:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$18$3$1$1$1:
-    public final void invoke$100()
-music.shard.mobile.ShardAppKt$ShardApp$1$18$3:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$ShardApp$1$2$1:
     public int label
     public final java.lang.Object invoke$3()
+music.shard.mobile.ShardAppKt$ShardApp$1$22$2:
+    public final void invoke$42()
+music.shard.mobile.ShardAppKt$ShardApp$1$22:
+    public final void invoke$2()
 music.shard.mobile.ShardAppKt$ShardApp$1$23$2:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$ShardApp$1$23:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$24$2:
-    public final void invoke$42()
 music.shard.mobile.ShardAppKt$ShardApp$1$24:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$25:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$26$1$1$1$1$1$1$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$25$1$1$1$1$1$1$1:
     public final void invoke$31()
-music.shard.mobile.ShardAppKt$ShardApp$1$26$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$1
-music.shard.mobile.ShardAppKt$ShardApp$1$26$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$3:
-    public final synthetic music.shard.mobile.ShardAppKt$ShardApp$1$26$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$1 $contentType
+music.shard.mobile.ShardAppKt$ShardApp$1$25$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$1
+music.shard.mobile.ShardAppKt$ShardApp$1$25$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$3:
+    public final synthetic music.shard.mobile.ShardAppKt$ShardApp$1$25$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$1 $contentType
     public final java.lang.Object invoke$13()
-music.shard.mobile.ShardAppKt$ShardApp$1$26$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$4:
+music.shard.mobile.ShardAppKt$ShardApp$1$25$invoke$lambda$5$lambda$4$lambda$3$$inlined$items$default$4:
     public final void invoke$18()
-music.shard.mobile.ShardAppKt$ShardApp$1$26:
+music.shard.mobile.ShardAppKt$ShardApp$1$25:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$ShardApp$1$3$1:
     public int label
     public final java.lang.Object invoke$3()
-music.shard.mobile.ShardAppKt$ShardApp$1$4$1:
-    public int label
-    public final java.lang.Object invoke$3()
-music.shard.mobile.ShardAppKt$ShardApp$1$7$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$6$1:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$7$2$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$6$2$2:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$7$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$6$2:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$7$3$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$6$3$2:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$7$3$4:
+music.shard.mobile.ShardAppKt$ShardApp$1$6$3$4:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$7$3:
+music.shard.mobile.ShardAppKt$ShardApp$1$6$3:
+    public final void invoke$42()
+music.shard.mobile.ShardAppKt$ShardApp$1$6:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$7$1$2$1$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$7$1$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$7$1$4$1$2:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$7$1$4$1$3:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$ShardApp$1$7$1$4:
     public final void invoke$42()
 music.shard.mobile.ShardAppKt$ShardApp$1$7:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$8$1$2$1$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$1$1$4:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$8$1$2:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$8$1$4$1$2:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$8$1$4$1$3:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$8$1$4:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$1$1$5$3:
     public final void invoke$42()
-music.shard.mobile.ShardAppKt$ShardApp$1$8:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$1$1$4:
-    public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$1$1$5$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$1$1$5$6:
     public final void invoke$42()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$1$1$5$4:
-    public final void invoke$42()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$1$1$5$6:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$1$1$5$8:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$1$1$6$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$1$1$6$2:
     public final void invoke$42()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$1:
-    public final void invoke$100()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$1$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$1:
+    public final void invoke$99()
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$1$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$2$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$2$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$3$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$3$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$4$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$4$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$5$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$5$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$6$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$6$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$7$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$7$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$8$1$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$8$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$1$10$2$1$4$8$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$9$1$1:
     public final void invoke()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$invoke$lambda$34$lambda$33$lambda$32$lambda$31$$inlined$items$1:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$1$10$2$1$4$9$1:
+    public final void invoke()
+music.shard.mobile.ShardAppKt$ShardApp$1$8$invoke$lambda$35$lambda$34$lambda$33$lambda$32$$inlined$items$1:
     public final java.lang.Object invoke$13()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$invoke$lambda$34$lambda$33$lambda$32$lambda$31$$inlined$items$2:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$invoke$lambda$35$lambda$34$lambda$33$lambda$32$$inlined$items$2:
     public final java.lang.Object invoke$13()
-music.shard.mobile.ShardAppKt$ShardApp$1$9$invoke$lambda$34$lambda$33$lambda$32$lambda$31$$inlined$items$3:
+music.shard.mobile.ShardAppKt$ShardApp$1$8$invoke$lambda$35$lambda$34$lambda$33$lambda$32$$inlined$items$3:
     public final void invoke$18()
-music.shard.mobile.ShardAppKt$ShardApp$1$9:
+music.shard.mobile.ShardAppKt$ShardApp$1$8:
     public static void invoke$101()
 music.shard.mobile.ShardAppKt$ShardApp$1:
     public static final void access$invoke$lambda$5(androidx.compose.runtime.MutableIntState,int)
@@ -87905,11 +87993,11 @@ music.shard.mobile.ShardAppKt$ShardApp$1:
 music.shard.mobile.ShardAppKt$StatisticsScreen$1$1$1$1:
     public final void invoke$12()
 music.shard.mobile.ShardAppKt$StatisticsScreen$1$1$1:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$StatisticsScreen$1$1$2:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$StatisticsScreen$1$1$3:
-    public final void invoke$100()
+    public final void invoke$99()
 music.shard.mobile.ShardAppKt$StatisticsScreen$1$1$4$1:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$StatisticsScreen$lambda$42$lambda$41$$inlined$items$default$1
@@ -87948,15 +88036,19 @@ music.shard.mobile.ShardAppKt$TrackEditDialog$4$1$4:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$TrackEditDialog$4:
     public final void invoke$2()
+music.shard.mobile.ShardAppKt$TrackRow$1$1$1:
+    public final void invoke$2()
 music.shard.mobile.ShardAppKt$TrackRow$1$2:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$TrackRow$1$3$2:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$TrackRow$1$3$4$1$1:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$TrackRow$1$3$4$2$1:
+music.shard.mobile.ShardAppKt$TrackRow$1$3$4$2:
     public final void invoke$2()
-music.shard.mobile.ShardAppKt$TrackRow$1$3$4$3:
+music.shard.mobile.ShardAppKt$TrackRow$1$3$4$4$1:
+    public final void invoke$2()
+music.shard.mobile.ShardAppKt$TrackRow$1$3$4$5:
     public final void invoke$2()
 music.shard.mobile.ShardAppKt$TrackRow$1$3$4:
     public final void invoke$12()
@@ -87982,6 +88074,7 @@ music.shard.mobile.Snapshot:
     public static java.io.File background()
     public static java.util.List getBackgrounds()
     public final java.util.Set getFavorites()
+    public final java.util.Set getIgnored()
     public static java.util.List getPlaylists()
     public static org.json.JSONObject getStatistics()
     public static java.util.List tracksIn()
@@ -87990,7 +88083,6 @@ music.shard.mobile.SyncService$Companion:
     public static kotlinx.coroutines.flow.MutableStateFlow getState()
     public static boolean getVisible()
     public static void setVisible()
-    public static synthetic void start$default(android.content.Context,int)
     public static void stop(android.content.Context)
 music.shard.mobile.SyncService$onDestroy$1:
     public final java.lang.Object invoke$3()

@@ -1,13 +1,13 @@
-Z:\developing\Lozex\mobile\android\app\build.gradle.kts:59: Warning: A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.09.00 [GradleDependency]
+Z:\developing\Lozex\mobile\android\app\build.gradle.kts:59: Warning: A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.11.01 [GradleDependency]
     implementation(platform("androidx.compose:compose-bom:2025.02.00"))
                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Z:\developing\Lozex\mobile\android\app\build.gradle.kts:60: Warning: A newer version of androidx.activity:activity-compose than 1.10.1 is available: 1.13.0 [GradleDependency]
     implementation("androidx.activity:activity-compose:1.10.1")
                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Z:\developing\Lozex\mobile\android\app\build.gradle.kts:63: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0 [GradleDependency]
+Z:\developing\Lozex\mobile\android\app\build.gradle.kts:63: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.1 [GradleDependency]
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Z:\developing\Lozex\mobile\android\app\build.gradle.kts:64: Warning: A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.0 [GradleDependency]
+Z:\developing\Lozex\mobile\android\app\build.gradle.kts:64: Warning: A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.1 [GradleDependency]
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Z:\developing\Lozex\mobile\android\app\build.gradle.kts:65: Warning: A newer version of androidx.media3:media3-exoplayer than 1.5.1 is available: 1.11.1 [GradleDependency]
@@ -25,7 +25,7 @@ Z:\developing\Lozex\mobile\android\app\build.gradle.kts:75: Warning: A newer ver
 Z:\developing\Lozex\mobile\android\app\build.gradle.kts:76: Warning: A newer version of androidx.test:runner than 1.6.2 is available: 1.7.0 [GradleDependency]
     androidTestImplementation("androidx.test:runner:1.6.2")
                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Z:\developing\Lozex\mobile\android\app\build.gradle.kts:77: Warning: A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.09.00 [GradleDependency]
+Z:\developing\Lozex\mobile\android\app\build.gradle.kts:77: Warning: A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.11.01 [GradleDependency]
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.02.00"))
                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

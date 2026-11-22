@@ -1,11 +1,15 @@
 pub mod appearance;
+pub mod artwork;
 pub mod backgrounds;
 #[cfg(feature = "desktop")]
 pub mod branding;
 pub mod db;
+mod download_duplicates;
 pub mod download_tools;
 pub mod favorites;
 pub mod i18n;
+pub mod ignored;
+pub mod mobile;
 pub mod models;
 mod music_metadata;
 pub mod preferences;
@@ -15,6 +19,7 @@ pub mod repositories;
 pub mod services;
 pub mod spotify;
 pub mod statistics;
+pub mod storage;
 pub mod sync;
 pub mod theme;
 pub mod volume;

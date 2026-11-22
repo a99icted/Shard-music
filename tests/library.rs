@@ -26,6 +26,63 @@ fn wav(path: &Path) {
 }
 
 #[test]
+fn ignored_tracks_persist_keep_library_and_playlists_but_remove_favorites() {
+    use shard::{favorites::FavoritesService, ignored::IgnoredTracksService};
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let source = root.path().join("ignored.wav");
+    wav(&source);
+    let tracks = TrackService::new(db.clone());
+    let first = tracks.import_local(&source).unwrap();
+    let second = tracks.import_local(&source).unwrap();
+    let playlists = PlaylistService::new(db.clone());
+    let playlist = playlists.create_playlist("Keep membership").unwrap();
+    playlists.add_track(playlist, first.id).unwrap();
+    FavoritesService::new(db.clone())
+        .set(first.id, true)
+        .unwrap();
+    let ignored = IgnoredTracksService::new(db.clone());
+    let conn = db.connect().unwrap();
+    conn.execute_batch("CREATE TRIGGER reject_unfavorite BEFORE DELETE ON favorites BEGIN SELECT RAISE(ABORT, 'test refusal'); END;").unwrap();
+    assert!(ignored.set(first.id, true).is_err());
+    assert!(ignored.ids().unwrap().is_empty());
+    assert!(FavoritesService::new(db).ids().unwrap().contains(&first.id));
+    conn.execute_batch("DROP TRIGGER reject_unfavorite")
+        .unwrap();
+    assert!(ignored.set(first.id, true).unwrap());
+    assert!(!ignored.set(first.id, true).unwrap());
+    assert!(ignored.set(-100, true).is_err());
+    let reopened = Database::open(root.path()).unwrap();
+    let ignored = IgnoredTracksService::new(reopened.clone());
+    assert_eq!(
+        ignored.ids().unwrap(),
+        std::collections::HashSet::from([first.id])
+    );
+    assert_eq!(
+        tracks.list_tracks().unwrap(),
+        [second.clone(), first.clone()]
+    );
+    assert_eq!(
+        playlists.list_playlist_tracks(playlist).unwrap(),
+        [first.clone()]
+    );
+    assert!(
+        !FavoritesService::new(reopened.clone())
+            .ids()
+            .unwrap()
+            .contains(&first.id)
+    );
+    assert!(tracks.audio_path(&first).unwrap().is_file());
+    assert!(ignored.set(first.id, false).unwrap());
+    assert!(ignored.ids().unwrap().is_empty());
+    assert!(FavoritesService::new(reopened).ids().unwrap().is_empty());
+    ignored.set(first.id, true).unwrap();
+    tracks.delete_track(first.id).unwrap();
+    assert!(ignored.ids().unwrap().is_empty());
+    assert_eq!(tracks.list_tracks().unwrap(), [second]);
+}
+
+#[test]
 fn favorites_are_global_persistent_and_independent_of_playlist_membership() {
     use shard::favorites::{FAVORITES_ID, FavoritesService};
     let root = tempfile::tempdir().unwrap();
@@ -510,4 +567,150 @@ fn failed_playlist_deletion_preserves_appearance_and_memberships() {
         Some("artwork/cover.png")
     );
     assert!(db.root().join("artwork/cover.png").is_file());
+}
+
+#[test]
+fn merging_playlists_is_atomic_deduplicates_and_keeps_source_order_and_assets() {
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let tracks = TrackService::new(db.clone());
+    let lists = PlaylistService::new(db.clone());
+    let mut ids = Vec::new();
+    for n in 0..3 {
+        let source = root.path().join(format!("{n}.wav"));
+        wav(&source);
+        ids.push(tracks.import_local(&source).unwrap().id);
+    }
+    let a = lists.create_playlist("A").unwrap();
+    let b = lists.create_playlist("B").unwrap();
+    lists.add_track(a, ids[1]).unwrap();
+    lists.add_track(a, ids[0]).unwrap();
+    lists.add_track(b, ids[0]).unwrap();
+    lists.add_track(b, ids[2]).unwrap();
+    let image = root.path().join("cover.png");
+    image::RgbImage::from_pixel(8, 8, image::Rgb([50, 100, 150]))
+        .save(&image)
+        .unwrap();
+    shard::appearance::AppearanceService::new(db.clone())
+        .set_cover(a, &image)
+        .unwrap();
+    assert!(lists.merge_playlists(a, 99999, "Failed").is_err());
+    assert_eq!(lists.list_playlists().unwrap().len(), 2);
+    let merged = lists.merge_playlists(a, b, "Merged").unwrap();
+    assert_eq!(
+        lists
+            .list_playlist_tracks(merged)
+            .unwrap()
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<_>>(),
+        [ids[1], ids[0], ids[2]]
+    );
+    assert_eq!(lists.list_playlist_tracks(a).unwrap().len(), 2);
+    assert_eq!(lists.list_playlist_tracks(b).unwrap().len(), 2);
+    let cover = lists
+        .list_playlists()
+        .unwrap()
+        .into_iter()
+        .find(|p| p.id == merged)
+        .unwrap()
+        .cover_path
+        .unwrap();
+    lists.delete_playlist(a).unwrap();
+    assert!(root.path().join(cover).is_file());
+    assert_eq!(tracks.list_tracks().unwrap().len(), 3);
+    assert!(lists.merge_playlists(b, b, "Same").is_err());
+    lists
+        .add_track(shard::favorites::FAVORITES_ID, ids[1])
+        .unwrap();
+    let merged = lists
+        .merge_playlists(b, shard::favorites::FAVORITES_ID, "With favorites")
+        .unwrap();
+    assert_eq!(
+        lists
+            .list_playlist_tracks(merged)
+            .unwrap()
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<_>>(),
+        [ids[0], ids[2], ids[1]]
+    );
+}
+
+#[test]
+fn embedded_artwork_is_imported_backfilled_and_removed_with_the_track() {
+    use lofty::tag::TagExt;
+    use lofty::{
+        config::WriteOptions,
+        picture::{MimeType, Picture, PictureType},
+        tag::{Tag, TagType},
+    };
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let service = TrackService::new(db.clone());
+    let path = root.path().join("with-cover.wav");
+    wav(&path);
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::RgbImage::from_pixel(20, 10, image::Rgb([180, 90, 30]))
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .unwrap();
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.push_picture(Picture::new_unchecked(
+        PictureType::CoverFront,
+        Some(MimeType::Png),
+        None,
+        bytes.into_inner(),
+    ));
+    tag.save_to_path(&path, WriteOptions::default()).unwrap();
+    let track = service.import_local(&path).unwrap();
+    let cover = shard::artwork::track_path(root.path(), &track);
+    assert_eq!(image::image_dimensions(&cover).unwrap(), (640, 640));
+    std::fs::remove_file(&cover).unwrap();
+    let list = PlaylistService::new(db.clone());
+    let id = list.create_playlist("Album").unwrap();
+    list.add_track(id, track.id).unwrap();
+    assert_eq!(
+        service
+            .refresh_artwork(&std::sync::atomic::AtomicBool::new(false))
+            .unwrap(),
+        1
+    );
+    assert!(cover.is_file());
+    assert!(list.list_playlists().unwrap()[0].cover_path.is_some());
+    assert_eq!(
+        service
+            .refresh_artwork(&std::sync::atomic::AtomicBool::new(false))
+            .unwrap(),
+        0
+    );
+    service.delete_track(track.id).unwrap();
+    assert!(!cover.exists());
+    assert!(path.is_file());
+}
+
+#[test]
+fn automatic_playlist_artwork_preserves_a_manual_cover() {
+    let root = tempfile::tempdir().unwrap();
+    let db = Database::open(root.path()).unwrap();
+    let id = PlaylistService::new(db.clone())
+        .create_playlist("Album")
+        .unwrap();
+    let service = shard::appearance::AppearanceService::new(db.clone());
+    let a = root.path().join("a.png");
+    let b = root.path().join("b.png");
+    image::RgbImage::from_pixel(8, 8, image::Rgb([50, 100, 150]))
+        .save(&a)
+        .unwrap();
+    image::RgbImage::from_pixel(8, 8, image::Rgb([200, 100, 50]))
+        .save(&b)
+        .unwrap();
+    service.set_cover(id, &a).unwrap();
+    let before = PlaylistService::new(db.clone()).list_playlists().unwrap()[0]
+        .cover_path
+        .clone();
+    service.set_cover_if_missing(id, &b).unwrap();
+    assert_eq!(
+        before,
+        PlaylistService::new(db).list_playlists().unwrap()[0].cover_path
+    );
 }

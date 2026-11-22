@@ -4,7 +4,7 @@
     <issue
         id="GradleDependency"
         severity="Warning"
-        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.09.00"
+        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.11.01"
         category="Correctness"
         priority="4"
         summary="Obsolete Gradle Dependency"
@@ -36,7 +36,7 @@
     <issue
         id="GradleDependency"
         severity="Warning"
-        message="A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0"
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.1"
         category="Correctness"
         priority="4"
         summary="Obsolete Gradle Dependency"
@@ -52,7 +52,7 @@
     <issue
         id="GradleDependency"
         severity="Warning"
-        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.0"
+        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.1"
         category="Correctness"
         priority="4"
         summary="Obsolete Gradle Dependency"
@@ -148,7 +148,7 @@
     <issue
         id="GradleDependency"
         severity="Warning"
-        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.09.00"
+        message="A newer version of androidx.compose:compose-bom than 2025.02.00 is available: 2026.11.01"
         category="Correctness"
         priority="4"
         summary="Obsolete Gradle Dependency"

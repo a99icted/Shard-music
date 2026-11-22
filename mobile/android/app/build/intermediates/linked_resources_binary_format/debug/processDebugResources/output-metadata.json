@@ -16,8 +16,8 @@
         }
       ],
       "attributes": [],
-      "versionCode": 8,
-      "versionName": "0.1.7",
+      "versionCode": 9,
+      "versionName": "0.1.8",
       "outputFile": "linked-resources-binary-format-x86_64Debug.ap_"
     },
     {
@@ -29,8 +29,8 @@
         }
       ],
       "attributes": [],
-      "versionCode": 8,
-      "versionName": "0.1.7",
+      "versionCode": 9,
+      "versionName": "0.1.8",
       "outputFile": "linked-resources-binary-format-arm64-v8aDebug.ap_"
     }
   ],

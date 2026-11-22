@@ -71,6 +71,16 @@ fn text<'a>(value: &'a Value, field: &str) -> &'a str {
         .trim()
 }
 
+fn spotify_artwork(value: &Value) -> Option<String> {
+    value
+        .pointer("/visualIdentity/image/0/url")
+        .or_else(|| value.pointer("/coverArt/sources/0/url"))
+        .or_else(|| value.pointer("/album/coverArt/sources/0/url"))
+        .or_else(|| value.get("imageUri"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
+
 pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
     let marker = html
         .find("id=\"__NEXT_DATA__\"")
@@ -129,6 +139,7 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
             tr("Spotify вернул трек без исполнителя")
         );
         tracks.push(CollectionTrack {
+            artwork_url: spotify_artwork(row).or_else(|| spotify_artwork(entity)),
             title: title.into(),
             artist,
             url: track_url,
@@ -137,6 +148,7 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
     }
     ensure!(!tracks.is_empty(), tr("В Spotify нет доступных треков"));
     Ok(Collection {
+        artwork_url: spotify_artwork(entity),
         title: text(entity, "title").into(),
         tracks,
         is_collection,
@@ -146,6 +158,30 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn extracts_album_artwork_and_individual_track_covers() {
+        let url =
+            validate_spotify_url("https://open.spotify.com/album/5dABmDwage8L9rZ4SFpMVM").unwrap();
+        let entity = serde_json::json!({"uri":"spotify:album:5dABmDwage8L9rZ4SFpMVM","title":"Album",
+            "coverArt":{"sources":[{"url":"https://i.scdn.co/image/album"}]},
+            "trackList":[{"uri":"spotify:track:3LuVARmTf1iY1EsLFIDHo2","title":"Track","subtitle":"Artist",
+                "coverArt":{"sources":[{"url":"https://i.scdn.co/image/track"}]}}]});
+        let data = serde_json::json!({"props":{"pageProps":{"state":{"data":{"entity":entity}}}}});
+        let collection = parse_embed(
+            &format!("<script id=\"__NEXT_DATA__\">{data}</script>"),
+            &url,
+        )
+        .unwrap();
+        assert_eq!(
+            collection.artwork_url.as_deref(),
+            Some("https://i.scdn.co/image/album")
+        );
+        assert_eq!(
+            collection.tracks[0].artwork_url.as_deref(),
+            Some("https://i.scdn.co/image/track")
+        );
+    }
+
     #[test]
     #[ignore = "requires public Spotify network access"]
     fn fetches_public_track_playlist_and_album() {

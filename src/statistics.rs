@@ -7,14 +7,16 @@ pub struct StatisticsService {
     db: Database,
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct ListeningSummary {
+    pub today_ms: i64,
+    pub week: Vec<(String, i64)>,
     pub month_ms: i64,
     pub year_ms: i64,
     pub top: Vec<TopTrack>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
 pub struct TopTrack {
     pub id: i64,
     pub title: String,
@@ -71,7 +73,12 @@ impl StatisticsService {
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        let today_ms = conn.query_row("SELECT COALESCE(SUM(listened_ms),0) FROM listening_days WHERE day=date('now','localtime')", [], |r| r.get(0))?;
+        let week = conn.prepare("WITH RECURSIVE days(day) AS (SELECT date('now','localtime','-6 days') UNION ALL SELECT date(day,'+1 day') FROM days WHERE day<date('now','localtime')) SELECT strftime('%d.%m',days.day),COALESCE(d.listened_ms,0) FROM days LEFT JOIN listening_days d ON d.day=days.day ORDER BY days.day")?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(ListeningSummary {
+            today_ms,
+            week,
             month_ms,
             year_ms,
             top,
@@ -151,6 +158,10 @@ mod tests {
         let summary = StatisticsService::new(Database::open(root.path()).unwrap())
             .summary()
             .unwrap();
+        assert_eq!(summary.today_ms, 21000);
+        assert_eq!(summary.week.len(), 7);
+        assert_eq!(summary.week.last().unwrap().1, 21000);
+        assert_eq!(summary.week.iter().map(|(_, ms)| *ms).sum::<i64>(), 21000);
         assert_eq!(summary.month_ms, 21000);
         assert_eq!(summary.year_ms, 21000);
         assert_eq!(summary.top[0].plays, 3);

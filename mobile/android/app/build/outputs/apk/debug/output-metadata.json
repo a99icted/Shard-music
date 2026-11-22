@@ -16,8 +16,8 @@
         }
       ],
       "attributes": [],
-      "versionCode": 8,
-      "versionName": "0.1.7",
+      "versionCode": 9,
+      "versionName": "0.1.8",
       "outputFile": "app-x86_64-debug.apk"
     },
     {
@@ -29,8 +29,8 @@
         }
       ],
       "attributes": [],
-      "versionCode": 8,
-      "versionName": "0.1.7",
+      "versionCode": 9,
+      "versionName": "0.1.8",
       "outputFile": "app-arm64-v8a-debug.apk"
     }
   ],

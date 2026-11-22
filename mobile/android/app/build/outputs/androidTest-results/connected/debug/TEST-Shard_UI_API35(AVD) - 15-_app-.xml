@@ -1,9 +1,23 @@
 <?xml version='1.0' encoding='UTF-8' ?>
-<testsuite name="music.shard.mobile.HotspotSyncTest" tests="1" failures="0" errors="0" skipped="0" time="2.858" timestamp="2026-11-18T10:21:49" hostname="localhost">
+<testsuite name="music.shard.mobile.AudioOutputTest" tests="13" failures="0" errors="0" skipped="1" time="43.211" timestamp="2026-11-22T10:10:47" hostname="localhost">
   <properties>
     <property name="device" value="Shard_UI_API35(AVD) - 15" />
     <property name="flavor" value="" />
     <property name="project" value=":app" />
   </properties>
-  <testcase name="qrFallbackAdvertisesTheConnectedInterface" classname="music.shard.mobile.HotspotSyncTest" time="0.044" />
+  <testcase name="firstStartQueueReplacementAndTransitionsProduceAudioWithoutSeeking" classname="music.shard.mobile.AudioOutputTest" time="23.145" />
+  <testcase name="workerReusesAudioThroughRustWithoutNetworkDownload" classname="music.shard.mobile.DownloadStateTest" time="0.916" />
+  <testcase name="duplicateChoicesSurviveReloadAndCanBeCancelled" classname="music.shard.mobile.DownloadStateTest" time="1.164" />
+  <testcase name="dismissPersistsAndRetryKeepsSuccessfulAudio" classname="music.shard.mobile.DownloadStateTest" time="1.219" />
+  <testcase name="updateAndDownloadYtDlpTestRecording" classname="music.shard.mobile.DownloaderNetworkTest" time="0.049">
+    <skipped />
+  </testcase>
+  <testcase name="qrFallbackAdvertisesTheConnectedInterface" classname="music.shard.mobile.HotspotSyncTest" time="0.049" />
+  <testcase name="ignoreSkipsCurrentButDirectPreviewDoesNotRepeat" classname="music.shard.mobile.IgnoredPlaybackTest" time="2.139" />
+  <testcase name="importPlaylistFavoriteAndDeleteThroughJni" classname="music.shard.mobile.NativeBridgeTest" time="0.078" />
+  <testcase name="mediaSessionDecodesPrivateRustImportedAudio" classname="music.shard.mobile.NativeBridgeTest" time="0.759" />
+  <testcase name="libraryFirstAndSettingsInSeparateTabs" classname="music.shard.mobile.NavigationTest" time="2.327" />
+  <testcase name="albumHeaderScrollsAwayAndTitleReturnsOnReverseScroll" classname="music.shard.mobile.NavigationTest" time="2.228" />
+  <testcase name="notificationAndMiniPlayerShareFavoritesAndPlaybackModes" classname="music.shard.mobile.PlaybackControlsTest" time="4.308" />
+  <testcase name="openingAndClosingCameraKeepsLanSessionAlive" classname="music.shard.mobile.QrScannerTest" time="3.038" />
 </testsuite>

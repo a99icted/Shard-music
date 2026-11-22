@@ -33,11 +33,23 @@ impl AppearanceService {
             // Only generated assets directly inside artwork belong to this service.
             if path.parent() == Some(Path::new("artwork")) && path.file_name().is_some() {
                 let _ = fs::remove_file(self.db.root().join(path));
+                let _ = fs::remove_file(crate::artwork::thumbnail_path(&self.db.root().join(path)));
             }
         }
     }
 
     pub fn set_cover(&self, id: i64, source: &Path) -> Result<()> {
+        self.write_cover(id, source, false)
+    }
+
+    pub fn set_cover_if_missing(&self, id: i64, source: &Path) -> Result<()> {
+        if self.previous_cover(id)?.is_some() || !source.is_file() {
+            return Ok(());
+        }
+        self.write_cover(id, source, true)
+    }
+
+    fn write_cover(&self, id: i64, source: &Path, only_missing: bool) -> Result<()> {
         let old = self.previous_cover(id)?;
         ensure!(
             fs::metadata(source)?.len() <= 25 * 1024 * 1024,
@@ -64,7 +76,23 @@ impl AppearanceService {
         let mut staged = tempfile::NamedTempFile::new_in(self.db.root().join("artwork"))?;
         image.write_to(staged.as_file_mut(), image::ImageFormat::Png)?;
         staged.persist(&destination)?;
-        if let Err(error) = self.repository.set_cover(id, Some(&path), Some(color)) {
+        // Preview failure must not invalidate the full cover or its SQL update.
+        let _ = crate::artwork::ensure_thumbnail(&destination);
+        let saved = if only_missing {
+            self.db.connect()?.execute(
+                "INSERT INTO playlist_appearance(playlist_id,cover_path,cover_color) VALUES (?1,?2,?3) ON CONFLICT(playlist_id) DO UPDATE SET cover_path=excluded.cover_path,cover_color=excluded.cover_color WHERE playlist_appearance.cover_path IS NULL",
+                rusqlite::params![id,path,color],
+            ).map(|count| count > 0).map_err(Into::into)
+        } else {
+            self.repository
+                .set_cover(id, Some(&path), Some(color))
+                .map(|()| true)
+        };
+        if matches!(saved, Ok(false)) {
+            let _ = fs::remove_file(&destination);
+            return Ok(());
+        }
+        if let Err(error) = saved {
             let _ = fs::remove_file(&destination);
             return Err(error);
         }

@@ -187,6 +187,44 @@ impl PlaylistRepository {
             .collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Restore collection order after deferred downloads, preserving user-added members.
+    pub fn order_tracks(&self, playlist_id: i64, preferred: &[i64]) -> Result<()> {
+        let mut conn = self.db.connect()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let current = {
+            let mut stmt = tx.prepare(
+                "SELECT track_id FROM playlist_tracks WHERE playlist_id=?1 ORDER BY position",
+            )?;
+            stmt.query_map([playlist_id], |r| r.get::<_, i64>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        let membership: std::collections::HashSet<_> = current.iter().copied().collect();
+        let mut seen = std::collections::HashSet::new();
+        let mut ordered = Vec::new();
+        for id in preferred.iter().chain(&current) {
+            if membership.contains(id) && seen.insert(*id) {
+                ordered.push(*id);
+            }
+        }
+        let offset: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(position)+1,0) FROM playlist_tracks WHERE playlist_id=?1",
+            [playlist_id],
+            |r| r.get(0),
+        )?;
+        tx.execute(
+            "UPDATE playlist_tracks SET position=position+?2 WHERE playlist_id=?1",
+            params![playlist_id, offset],
+        )?;
+        for (position, id) in ordered.into_iter().enumerate() {
+            tx.execute(
+                "UPDATE playlist_tracks SET position=?3 WHERE playlist_id=?1 AND track_id=?2",
+                params![playlist_id, id, position as i64],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn remove_track(&self, playlist_id: i64, track_id: i64) -> Result<bool> {
         let mut conn = self.db.connect()?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;

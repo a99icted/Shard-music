@@ -1,12 +1,25 @@
 use shard::{i18n::tr, localized_format};
+#[path = "ui/artwork.rs"]
+mod artwork;
 #[path = "ui/components.rs"]
 mod components;
+#[path = "ui/devices.rs"]
+mod devices;
+#[path = "ui/downloads.rs"]
+mod downloads;
+use downloads::DownloadResult;
 #[path = "ui/home.rs"]
 mod home;
+#[path = "ui/ignored.rs"]
+mod ignored;
+#[path = "ui/image_cache.rs"]
+mod image_cache;
 #[path = "ui/settings.rs"]
 mod settings;
 #[path = "ui/sidebar.rs"]
 mod sidebar;
+#[path = "ui/storage.rs"]
+mod storage;
 #[path = "ui/synchronization.rs"]
 mod synchronization;
 
@@ -75,11 +88,16 @@ enum Modal {
     EditTrack(Track),
     PlaylistAppearance(i64),
     Import,
+    Downloads,
+    MoveStorage(PathBuf),
+    ClearStorage,
+    MergePlaylist(Playlist),
     CreatePlaylist,
     AddToPlaylist(Track),
     PickTracks(i64),
     TrackActions(Track),
     DeleteTrack(Track),
+    DeleteIgnoredTracks(Vec<Track>),
     DeletePlaylist(Playlist),
 }
 
@@ -87,9 +105,19 @@ pub(crate) struct UiTheme(pub Theme);
 impl Global for UiTheme {}
 
 pub struct MusicApp {
+    images: Entity<image_cache::ArtworkCache>,
+    image_cache_dirty: bool,
+    library_loading: bool,
+    thumbnail_cancel: Option<Arc<AtomicBool>>,
+    thumbnail_queue: std::collections::VecDeque<PathBuf>,
+    thumbnail_pending: std::collections::HashSet<PathBuf>,
+    preview_paths: std::collections::HashSet<PathBuf>,
+    image_invalidations: Vec<PathBuf>,
     favorites_service: shard::favorites::FavoritesService,
     favorite_ids: std::collections::HashSet<i64>,
     favorite_pending: std::collections::HashSet<i64>,
+    ignored_service: shard::ignored::IgnoredTracksService,
+    ignored_ids: std::collections::HashSet<i64>,
     sync_service: Option<shard::sync::SyncService>,
     sync_status: shard::sync::SyncStatus,
     sync_input: Entity<TextInput>,
@@ -98,6 +126,9 @@ pub struct MusicApp {
     sync_duplicate_requests: Option<mpsc::Receiver<synchronization::DuplicateRequest>>,
     sync_duplicate_prompt: Option<synchronization::DuplicatePrompt>,
     settings_open: bool,
+    storage_moving: bool,
+    storage_clearing: bool,
+    storage_ready: bool,
     settings_category: settings::SettingsCategory,
     playlist_name: Entity<TextInput>,
     playlist_name_task: Option<Task<()>>,
@@ -113,6 +144,8 @@ pub struct MusicApp {
     collection_query: String,
     scroll_context: Option<i64>,
     home_open: bool,
+    home_playlists_expanded: bool,
+    home_activity_expanded: bool,
     statistics: StatisticsService,
     listening: ListeningSummary,
     statistics_updated: Instant,
@@ -125,8 +158,10 @@ pub struct MusicApp {
     playlists_service: PlaylistService,
     tracks: Vec<Track>,
     track_index: std::collections::HashMap<i64, usize>,
+    artwork_cancel: Option<Arc<AtomicBool>>,
     playlists: Vec<Playlist>,
     visible_tracks: Vec<Track>,
+    visible_duration_ms: i64,
     selected_playlist: Option<i64>,
     modal: Option<Modal>,
     input: Entity<TextInput>,
@@ -137,6 +172,9 @@ pub struct MusicApp {
     message: Option<String>,
     error: Option<String>,
     player: Player,
+    pending_downloads: std::collections::VecDeque<String>,
+    active_download: Option<String>,
+    download_history: Vec<DownloadResult>,
     download_progress: Option<mpsc::Receiver<YoutubeProgress>>,
     download_cancel: Option<Arc<AtomicBool>>,
     preferences: Preferences,
@@ -169,9 +207,6 @@ impl MusicApp {
         }
         self.message = None;
         self.error = None;
-        if let Some(progress) = &self.job_progress {
-            self.busy = Some(progress.message());
-        }
         self.collection_dirty = true;
         if let Some(playlist) = self
             .playlists
@@ -219,9 +254,19 @@ impl MusicApp {
         cx.set_global(UiTheme(preferences.theme));
         window.focus(&focus);
         let mut app = Self {
+            images: image_cache::ArtworkCache::new(cx),
+            image_cache_dirty: false,
+            library_loading: false,
+            thumbnail_cancel: None,
+            thumbnail_queue: Default::default(),
+            thumbnail_pending: Default::default(),
+            preview_paths: Default::default(),
+            image_invalidations: vec![],
             favorites_service: shard::favorites::FavoritesService::new(db.clone()),
             favorite_ids: Default::default(),
             favorite_pending: Default::default(),
+            ignored_service: shard::ignored::IgnoredTracksService::new(db.clone()),
+            ignored_ids: Default::default(),
             sync_service: None,
             sync_status: Default::default(),
             sync_input: cx.new(|cx| TextInput::new(tr("Вставьте код другого устройства"), cx)),
@@ -230,6 +275,9 @@ impl MusicApp {
             sync_duplicate_requests: None,
             sync_duplicate_prompt: None,
             settings_open: false,
+            storage_moving: false,
+            storage_clearing: false,
+            storage_ready: false,
             settings_category: settings::SettingsCategory::Customization,
             playlist_name: cx.new(|cx| TextInput::new(tr("Название плейлиста"), cx)),
             playlist_name_task: None,
@@ -245,6 +293,8 @@ impl MusicApp {
             collection_query: String::new(),
             scroll_context: None,
             home_open: true,
+            home_playlists_expanded: false,
+            home_activity_expanded: false,
             statistics: StatisticsService::new(db.clone()),
             listening: ListeningSummary::default(),
             statistics_updated: Instant::now(),
@@ -257,8 +307,10 @@ impl MusicApp {
             playlists_service: PlaylistService::new(db),
             tracks: vec![],
             track_index: std::collections::HashMap::new(),
+            artwork_cancel: None,
             playlists: vec![],
             visible_tracks: vec![],
+            visible_duration_ms: 0,
             selected_playlist: None,
             modal: None,
             input: cx.new(|cx| TextInput::new("", cx)),
@@ -269,6 +321,9 @@ impl MusicApp {
             message: None,
             error: None,
             player,
+            pending_downloads: Default::default(),
+            active_download: None,
+            download_history: vec![],
             download_progress: None,
             download_cancel: None,
             last_volume: if preferences.volume > 0. {
@@ -298,6 +353,9 @@ impl MusicApp {
         }
         app.refresh(cx);
         cx.on_release(|app, _| {
+            if let Some(cancel) = &app.thumbnail_cancel {
+                cancel.store(true, Ordering::Relaxed);
+            }
             if let Some(path) = app.sync_qr.take() {
                 let _ = std::fs::remove_file(path);
             }
@@ -309,11 +367,17 @@ impl MusicApp {
         })
         .detach();
         cx.on_app_quit(|app, cx| {
+            if let Some(cancel) = &app.thumbnail_cancel {
+                cancel.store(true, Ordering::Relaxed);
+            }
             if let Some(service) = &app.sync_service {
                 service.stop();
             }
             app.commit_playlist_name(cx);
             if let Some(cancel) = &app.download_cancel {
+                cancel.store(true, Ordering::Relaxed);
+            }
+            if let Some(cancel) = &app.artwork_cancel {
                 cancel.store(true, Ordering::Relaxed);
             }
             app.player.stop();
@@ -390,10 +454,13 @@ impl MusicApp {
                             .as_ref()
                             .and_then(|receiver| receiver.try_iter().last())
                         {
-                            app.busy = Some(progress.message());
+                            let imported = app
+                                .job_progress
+                                .as_ref()
+                                .is_some_and(|previous| progress.completed > previous.completed);
                             app.job_progress = Some(progress.clone());
                             changed = true;
-                            if progress.completed > 0 {
+                            if imported {
                                 app.refresh(cx);
                             }
                         }
@@ -412,59 +479,112 @@ impl MusicApp {
     }
 
     fn refresh(&mut self, cx: &mut Context<Self>) {
+        if self.storage_clearing || self.storage_moving {
+            return;
+        }
         if self.home_open {
             self.refresh_statistics(cx);
         }
         self.library_generation += 1;
+        if self.library_loading {
+            return;
+        }
+        self.library_loading = true;
         let generation = self.library_generation;
         let selected = self.selected_playlist;
         if self.loaded_playlist != selected {
             self.visible_tracks.clear();
+            self.visible_duration_ms = 0;
             self.collection_dirty = true;
         }
         let tracks = self.tracks_service.clone();
         let playlists = self.playlists_service.clone();
         let backgrounds = self.background_service.clone();
         let favorites = self.favorites_service.clone();
+        let ignored = self.ignored_service.clone();
+        let data_root = self.data_directory.clone();
         let task = cx.background_executor().spawn(async move {
             let tracks = tracks.list_tracks()?;
             let visible = match selected {
                 Some(id) => playlists.list_playlist_tracks(id)?,
                 None => tracks.clone(),
             };
+            let mut lists = playlists.list_playlists()?;
+            lists.insert(0, favorites.playlist()?);
+            let previews = shard::artwork::PreviewPlan::inspect(
+                lists
+                    .iter()
+                    .filter_map(|playlist| {
+                        playlist
+                            .cover_path
+                            .as_ref()
+                            .map(|path| data_root.join(path))
+                    })
+                    .chain(
+                        visible
+                            .iter()
+                            .map(|track| shard::artwork::track_path(&data_root, track)),
+                    )
+                    .chain(
+                        tracks
+                            .iter()
+                            .map(|track| shard::artwork::track_path(&data_root, track)),
+                    ),
+            );
             Ok::<_, anyhow::Error>((
                 tracks,
-                {
-                    let mut lists = playlists.list_playlists()?;
-                    lists.insert(0, favorites.playlist()?);
-                    lists
-                },
+                lists,
                 visible,
                 backgrounds.list()?,
                 favorites.ids()?,
+                ignored.ids()?,
+                previews,
             ))
         });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |app, cx| {
                 // A slower previous request must not overwrite a newer navigation or import.
+                app.library_loading = false;
                 if app.library_generation != generation {
+                    app.refresh(cx);
                     return;
                 }
                 match result {
-                    Ok((tracks, playlists, visible, backgrounds, favorite_ids)) => {
+                    Ok((
+                        tracks,
+                        playlists,
+                        visible,
+                        backgrounds,
+                        favorite_ids,
+                        ignored_ids,
+                        previews,
+                    )) => {
                         app.favorite_ids = favorite_ids;
+                        app.ignored_ids = ignored_ids;
+                        app.player.set_ignored(app.ignored_ids.clone());
+                        app.preview_paths = previews.ready;
                         app.track_index = tracks
                             .iter()
                             .enumerate()
                             .map(|(index, track)| (track.id, index))
                             .collect();
+                        app.player.set_library(
+                            tracks
+                                .iter()
+                                .filter_map(|track| app.playback_track(track).ok())
+                                .collect(),
+                            app.preferences.autoplay,
+                        );
                         app.tracks = tracks;
                         app.playlists = playlists;
+                        app.visible_duration_ms =
+                            visible.iter().filter_map(|t| t.duration_ms).sum();
                         app.visible_tracks = visible;
                         app.backgrounds = backgrounds;
                         app.loaded_playlist = selected;
                         app.collection_dirty = true;
+                        app.prepare_previews(previews.pending, cx);
                     }
                     Err(error) => app.error = Some(format!("{error:#}")),
                 }
@@ -486,7 +606,6 @@ impl MusicApp {
             return;
         }
         self.busy = Some(label.to_owned());
-        self.job_progress = None;
         self.error = None;
         self.error_details_open = false;
         self.message = None;
@@ -495,9 +614,6 @@ impl MusicApp {
             let result = task.await;
             let _ = this.update(cx, |app, cx| {
                 app.busy = None;
-                app.download_progress = None;
-                app.download_cancel = None;
-                app.job_progress = None;
                 match result {
                     Ok(value) => done(app, value, cx),
                     Err(error) => app.error = Some(format!("{error:#}")),
@@ -574,12 +690,6 @@ impl MusicApp {
     fn open_modal(&mut self, modal: Modal, window: &mut Window, cx: &mut Context<Self>) {
         self.commit_playlist_name(cx);
         self.header_color_draft = None;
-        if self.busy.is_some() && matches!(modal, Modal::Import) {
-            self.modal = Some(Modal::Import);
-            window.focus(&self.focus);
-            cx.notify();
-            return;
-        }
         let has_input = matches!(
             modal,
             Modal::Import | Modal::CreatePlaylist | Modal::EditTrack(_)
@@ -646,9 +756,6 @@ impl MusicApp {
     }
 
     fn submit(&mut self, _: &Submit, window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy.is_some() && matches!(self.modal, Some(Modal::Import)) {
-            return;
-        }
         match self.modal.clone() {
             Some(Modal::EditTrack(track)) => {
                 let service = self.tracks_service.clone();
@@ -688,42 +795,39 @@ impl MusicApp {
                 }
             }
             Some(Modal::Import) => {
-                let url = self.input.read(cx).value();
-                if let Err(error) = shard::services::validate_music_url(&url) {
-                    self.error = Some(format!("{error:#}"));
-                    cx.notify();
+                let input = self.input.read(cx).value();
+                if input.trim().is_empty() {
                     return;
                 }
-                let service = self.tracks_service.clone();
-                let (sender, receiver) = mpsc::channel();
-                let cancel = Arc::new(AtomicBool::new(false));
-                self.download_progress = Some(receiver);
-                self.download_cancel = Some(cancel.clone());
-                self.run_job(
-                    tr("Получаем список треков…"),
-                    move || {
-                        service.download_collection(&url, &cancel, |progress| {
-                            let _ = sender.send(progress);
-                        })
-                    },
-                    |app, report, _| {
-                        let was_open = matches!(app.modal, Some(Modal::Import));
-                        if was_open {
-                            app.modal = None;
-                        }
-                        app.message = Some(report.message());
-                        app.error = report.error_details();
-                        if let Some(id) = report.playlist_id
-                            && was_open
-                        {
-                            app.settings_open = false;
-                            app.home_open = false;
-                            app.selected_playlist = Some(id);
-                        }
-                    },
-                    cx,
-                );
-                window.focus(&self.focus);
+                let url = match shard::services::validate_music_url(&input) {
+                    Ok(url) => url.to_string(),
+                    Err(error) => {
+                        self.error = Some(format!("{error:#}"));
+                        cx.notify();
+                        return;
+                    }
+                };
+                if self.active_download.as_ref() == Some(&url)
+                    || self.pending_downloads.contains(&url)
+                {
+                    self.message = Some(localized_format!(
+                        "Эта ссылка уже в очереди загрузок",
+                        "This link is already queued"
+                    ));
+                } else {
+                    self.pending_downloads.push_back(url);
+                    self.start_next_download(cx);
+                    self.input.update(cx, |input, cx| {
+                        input.reset();
+                        cx.notify();
+                    });
+                    self.message = Some(localized_format!(
+                        "Добавлено в очередь загрузок",
+                        "Added to download queue"
+                    ));
+                }
+                cx.notify();
+                window.focus(&self.input.focus_handle(cx));
             }
             Some(Modal::CreatePlaylist) => {
                 let service = self.playlists_service.clone();
@@ -852,14 +956,22 @@ impl MusicApp {
         {
             self.player.select(track.id);
         } else {
-            let result: Result<Vec<_>> = self
-                .filtered_tracks(cx)
+            let context = if self.settings_open {
+                vec![track.clone()]
+            } else {
+                self.filtered_tracks(cx)
+            };
+            let result: Result<Vec<_>> = context
                 .iter()
                 .map(|track| self.playback_track(track))
                 .collect();
             match result {
                 Ok(tracks) => {
-                    self.playback_context = self.current_title();
+                    self.playback_context = if self.settings_open {
+                        tr("Игнорирование").into()
+                    } else {
+                        self.current_title()
+                    };
                     self.playback_playlist = self.selected_playlist;
                     self.playback_query = query;
                     self.player.start(tracks, track.id);
@@ -876,7 +988,11 @@ impl MusicApp {
         }
         if self.player.state().track_id.is_some() {
             self.player.toggle();
-        } else if let Some(track) = self.filtered_tracks(cx).first().cloned() {
+        } else if let Some(track) = self
+            .filtered_tracks(cx)
+            .into_iter()
+            .find(|track| !self.ignored_ids.contains(&track.id))
+        {
             self.play(track, cx);
         }
         cx.notify();
@@ -887,7 +1003,11 @@ impl MusicApp {
             && self.playback_playlist == self.selected_playlist
         {
             self.player.toggle();
-        } else if let Some(track) = self.filtered_tracks(cx).first().cloned() {
+        } else if let Some(track) = self
+            .filtered_tracks(cx)
+            .into_iter()
+            .find(|track| !self.ignored_ids.contains(&track.id))
+        {
             self.play(track, cx);
         }
         cx.notify();
@@ -906,32 +1026,23 @@ impl MusicApp {
         cx.notify();
     }
 
-    fn toggle_shuffle(&mut self, cx: &mut Context<Self>) {
-        self.preferences.shuffle = !self.preferences.shuffle;
-        self.player.set_shuffle(self.preferences.shuffle);
-        self.save_preferences();
-        cx.notify();
+    fn playback_mode(&self) -> shard::queue::PlaybackMode {
+        shard::queue::PlaybackMode::from_flags(self.preferences.shuffle, self.preferences.autoplay)
     }
 
-    fn shuffle_collection(&mut self, cx: &mut Context<Self>) {
-        use rand::seq::IndexedRandom;
-        let tracks = self.filtered_tracks(cx);
-        let Some(selected) = tracks.choose(&mut rand::rng()).map(|t| t.id) else {
-            return;
-        };
-        let playable: Result<Vec<_>> = tracks.iter().map(|t| self.playback_track(t)).collect();
-        match playable {
-            Ok(tracks) => {
-                self.preferences.shuffle = true;
-                self.player.set_shuffle(true);
-                self.playback_context = self.current_title();
-                self.playback_playlist = self.selected_playlist;
-                self.playback_query = self.search.read(cx).value();
-                self.player.start(tracks, selected);
-                self.save_preferences();
-            }
-            Err(error) => self.error = Some(format!("{error:#}")),
-        }
+    fn cycle_playback_mode(&mut self, cx: &mut Context<Self>) {
+        let (shuffle, autoplay) = self.playback_mode().next().flags();
+        self.preferences.shuffle = shuffle;
+        self.preferences.autoplay = autoplay;
+        self.player.set_shuffle(shuffle);
+        self.player.set_library(
+            self.tracks
+                .iter()
+                .filter_map(|track| self.playback_track(track).ok())
+                .collect(),
+            autoplay,
+        );
+        self.save_preferences();
         cx.notify();
     }
 
@@ -1004,7 +1115,11 @@ impl MusicApp {
     }
 
     fn enqueue_track(&mut self, track: &Track, cx: &mut Context<Self>) {
-        if self.player.state().queue.contains(track.id) {
+        if self.ignored_ids.contains(&track.id) {
+            self.message = Some(
+                tr("Этот трек игнорируется. Запустите его напрямую или уберите из игнора.").into(),
+            );
+        } else if self.player.state().queue.contains(track.id) {
             self.message = Some(tr("Этот трек уже есть в очереди").into());
         } else {
             match self.playback_track(track) {
@@ -1103,6 +1218,25 @@ impl MusicApp {
         let colors = self.colors();
         let modal = self.modal.clone()?;
         let (eyebrow, title, description) = match &modal {
+            Modal::DeleteIgnoredTracks(tracks) => (
+                tr("УДАЛЕНИЕ ИЗ ХРАНИЛИЩА"),
+                tr("Удалить все игнорируемые треки?"),
+                localized_format!(
+                    "Из хранилища, библиотеки и всех плейлистов будут удалены игнорируемые треки: {}. Исходные файлы на устройстве сохранятся.",
+                    "Ignored tracks will be deleted from storage, your library and all playlists: {}. Original files on your device will be kept.",
+                    tracks.len()
+                ),
+            ),
+            Modal::ClearStorage => (
+                "SHARD",
+                tr("Очистить хранилище?"),
+                localized_format!(
+                    "Будут безвозвратно удалены все {} треков из папки {} и обложки этих треков. Все плейлисты станут пустыми. Настройки, оформление и статистика сохранятся. Исходные файлы, из которых вы импортировали музыку, не затрагиваются.",
+                    "All {} tracks in {} and their track covers will be permanently deleted. All playlists become empty. Settings, appearance and listening totals are kept. Original files used for imports are untouched.",
+                    self.tracks.len(),
+                    self.data_directory.display()
+                ),
+            ),
             Modal::SyncOptions(selection) => (
                 tr("ПЕРЕДАЧА МУЗЫКИ"),
                 tr("Настройки синхронизации"),
@@ -1122,6 +1256,32 @@ impl MusicApp {
                 tr("ПОМОЩЬ"),
                 tr("Как работает синхронизация"),
                 tr("Передавайте музыку между устройствами в одной локальной сети.").to_owned(),
+            ),
+            Modal::MoveStorage(destination) => (
+                "SHARD",
+                tr("Изменить хранилище"),
+                localized_format!(
+                    "Перенести библиотеку в {}? Треки, обложки, плейлисты и настройки будут скопированы, затем SHARD перезапустится. Исходная папка сохранится как резервная копия.",
+                    "Move the library to {}? Tracks, artwork, playlists and settings will be copied, then SHARD will restart. The original folder stays as a backup.",
+                    destination.display()
+                ),
+            ),
+            Modal::Downloads => (
+                "SHARD",
+                tr("Загрузки"),
+                localized_format!(
+                    "Альбомы и треки скачиваются по очереди. Можно продолжать пользоваться библиотекой.",
+                    "Albums and tracks download in order. Your library stays available."
+                ),
+            ),
+            Modal::MergePlaylist(playlist) => (
+                "SHARD",
+                tr("Объединить плейлисты"),
+                localized_format!(
+                    "Выберите пару для «{}». Создадим новый плейлист без повторов; исходные подборки сохранятся.",
+                    "Choose a partner for “{}”. A new playlist will contain unique tracks; both originals are kept.",
+                    playlist.name
+                ),
             ),
             Modal::PlaylistActions(playlist) => (
                 tr("УПРАВЛЕНИЕ ПЛЕЙЛИСТОМ"),
@@ -1266,6 +1426,29 @@ impl MusicApp {
                     .child(description),
             );
         match modal {
+            Modal::DeleteIgnoredTracks(tracks) => {
+                card = card
+                    .child(
+                        self.button(
+                            "confirm-delete-ignored",
+                            tr("Удалить все игнорируемые треки"),
+                            false,
+                        )
+                        .text_color(rgb(0xf29a9a))
+                        .on_click(cx.listener(
+                            move |app, _, window, cx| {
+                                app.delete_ignored_tracks(tracks.clone(), cx);
+                                window.focus(&app.focus);
+                            },
+                        )),
+                    )
+                    .child(
+                        self.button("cancel-delete-ignored", tr("Отмена"), false)
+                            .on_click(
+                                cx.listener(|app, _, window, cx| app.dismiss(&Dismiss, window, cx)),
+                            ),
+                    );
+            }
             Modal::SyncOptions(selection) => {
                 card = card.child(self.sync_options_view(selection, cx));
             }
@@ -1288,9 +1471,94 @@ impl MusicApp {
                         ),
                 );
             }
+            Modal::ClearStorage => {
+                card = card.child(
+                    self.button(
+                        "confirm-clear-storage",
+                        &localized_format!("Удалить всю музыку", "Delete all music"),
+                        false,
+                    )
+                    .text_color(rgb(0xf29a9a))
+                    .on_click(cx.listener(|app, _, _, cx| app.clear_storage(cx))),
+                );
+            }
+            Modal::MoveStorage(destination) => {
+                card = card.child(
+                    self.button(
+                        "confirm-storage-move",
+                        tr("Перенести и перезапустить"),
+                        true,
+                    )
+                    .on_click(
+                        cx.listener(move |app, _, _, cx| app.move_storage(destination.clone(), cx)),
+                    ),
+                );
+            }
+            Modal::Downloads => {
+                card = card.child(self.downloads_view(cx)).child(
+                    self.button(
+                        "downloads-add",
+                        &localized_format!("+ Добавить музыку", "+ Add music"),
+                        true,
+                    )
+                    .on_click(
+                        cx.listener(|app, _, window, cx| app.open_modal(Modal::Import, window, cx)),
+                    ),
+                );
+            }
+            Modal::MergePlaylist(source) => {
+                let first = source.id;
+                let source_name = source.name.clone();
+                card = card.child(
+                    div()
+                        .id("merge-targets")
+                        .max_h(px(300.))
+                        .overflow_y_scroll()
+                        .children(self.playlists.iter().filter(|p| p.id != first).map(
+                            |playlist| {
+                                let second = playlist.id;
+                                let name: String = format!("{} + {}", source_name, playlist.name)
+                                    .chars()
+                                    .take(100)
+                                    .collect();
+                                div()
+                                    .id(("merge-with", second as u64))
+                                    .p_3()
+                                    .mb_2()
+                                    .rounded_lg()
+                                    .bg(rgb(colors.button))
+                                    .cursor_pointer()
+                                    .hover(move |s| s.bg(rgb(colors.button_hover)))
+                                    .child(playlist.name.clone())
+                                    .on_click(cx.listener(move |app, _, _, cx| {
+                                        let service = app.playlists_service.clone();
+                                        let name = name.clone();
+                                        app.run_job(
+                                            tr("Сохраняем…"),
+                                            move || service.merge_playlists(first, second, &name),
+                                            |app, id, _| {
+                                                app.selected_playlist = Some(id);
+                                                app.home_open = false;
+                                                app.settings_open = false;
+                                                app.modal = None;
+                                            },
+                                            cx,
+                                        );
+                                    }))
+                            },
+                        )),
+                );
+            }
             Modal::PlaylistActions(playlist) => {
                 let id = playlist.id;
+                let merge = playlist.clone();
                 card = card
+                    .child(
+                        self.button("merge-playlists", tr("Объединить плейлисты"), false)
+                            .on_click(cx.listener(move |app, _, window, cx| {
+                                app.open_modal(Modal::MergePlaylist(merge.clone()), window, cx)
+                            })),
+                    )
                     .child(
                         self.button("menu-pick-tracks", tr("+  Треки"), false)
                             .on_click(cx.listener(move |app, _, window, cx| {
@@ -1410,9 +1678,11 @@ impl MusicApp {
                         ),
                     )
                     .child(self.input.clone())
-                    .child(self.button("download", tr("Скачать и добавить"), true).on_click(
+                    .child(self.button("download", if self.active_download.is_some() { tr("Добавить в очередь") } else { tr("Скачать и добавить") }, true).on_click(
                         cx.listener(|app, _, window, cx| app.submit(&Submit, window, cx)),
                     ))
+                    .child(self.button("show-downloads", tr("Загрузки"), false)
+                        .on_click(cx.listener(|app, _, window, cx| app.open_modal(Modal::Downloads, window, cx))))
                     .child(div().text_xs().text_color(rgb(colors.muted)).child(
                         tr("Плейлист сохранится в приложении. Треки Spotify и Яндекс Музыки ищутся на YouTube по названию и исполнителю."),
                     ));
@@ -1508,6 +1778,8 @@ impl MusicApp {
                 }
             }
             Modal::TrackActions(track) => {
+                let ignore_id = track.id;
+                let ignored = self.ignored_ids.contains(&ignore_id);
                 let edit = track.clone();
                 let queued = track.clone();
                 let add = track.clone();
@@ -1515,6 +1787,24 @@ impl MusicApp {
                 let sync_track = track.id;
                 let delete = track;
                 card = card
+                    .child(
+                        self.button(
+                            "ignore-track",
+                            if ignored {
+                                tr("Убрать из игнора")
+                            } else {
+                                tr("Игнорировать трек")
+                            },
+                            false,
+                        )
+                        .on_click(cx.listener(
+                            move |app, _, window, cx| {
+                                app.set_track_ignored(ignore_id, !ignored, cx);
+                                app.modal = None;
+                                window.focus(&app.focus);
+                            },
+                        )),
+                    )
                     .child(
                         self.button("edit-track", tr("Изменить название и исполнителя"), false)
                             .on_click(cx.listener(move |app, _, window, cx| {
@@ -1623,7 +1913,11 @@ impl MusicApp {
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(card)
+                .child(card.with_animation(
+                    "modal-enter",
+                    Animation::new(Duration::from_millis(160)).with_easing(ease_out_quint()),
+                    |card, t| card.opacity(t),
+                ))
                 .into_any_element(),
         )
     }
@@ -1634,10 +1928,17 @@ impl MusicApp {
         let colors = self.colors();
         div()
             .id(id)
+            .relative()
             .px_4()
             .py_3()
             .flex_shrink_0()
-            .rounded_lg()
+            .rounded_xl()
+            .border_1()
+            .border_color(rgb(if primary {
+                colors.accent
+            } else {
+                colors.border
+            }))
             .cursor_pointer()
             .text_sm()
             .font_weight(FontWeight::SEMIBOLD)
@@ -1654,6 +1955,8 @@ impl MusicApp {
                     colors.button_hover
                 }))
             })
+            .active(|s| s.opacity(0.72))
+            .child(self.button_feedback(12.))
             .child(label.to_owned())
     }
 }

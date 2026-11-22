@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="music.shard.mobile.DownloadFailureTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-18T10:16:42" hostname="DESKTOP-VNETL3P" time="2.574">
+<testsuite name="music.shard.mobile.DownloadFailureTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-22T09:59:22" hostname="DESKTOP-VNETL3P" time="2.38">
   <properties/>
-  <testcase name="persistentNetworkFailureStopsAfterOneRetry" classname="music.shard.mobile.DownloadFailureTest" time="1.457"/>
-  <testcase name="plain403AndCancellationAreNotRetried" classname="music.shard.mobile.DownloadFailureTest" time="0.002"/>
-  <testcase name="challengeTimeoutBefore403IsRetriedAndExplained" classname="music.shard.mobile.DownloadFailureTest" time="1.008"/>
+  <testcase name="persistentNetworkFailureStopsAfterOneRetry" classname="music.shard.mobile.DownloadFailureTest" time="1.276"/>
+  <testcase name="plain403AndCancellationAreNotRetried" classname="music.shard.mobile.DownloadFailureTest" time="0.001"/>
+  <testcase name="challengeTimeoutBefore403IsRetriedAndExplained" classname="music.shard.mobile.DownloadFailureTest" time="1.011"/>
   <testcase name="accountRestrictionsHaveUsefulMessage" classname="music.shard.mobile.DownloadFailureTest" time="0.0"/>
-  <testcase name="oldVersionWarningDoesNotHideActual403" classname="music.shard.mobile.DownloadFailureTest" time="0.0"/>
-  <testcase name="detailsFitWorkManagerEvenForCyrillicAndEmoji" classname="music.shard.mobile.DownloadFailureTest" time="0.106"/>
+  <testcase name="oldVersionWarningDoesNotHideActual403" classname="music.shard.mobile.DownloadFailureTest" time="0.001"/>
+  <testcase name="detailsFitWorkManagerEvenForCyrillicAndEmoji" classname="music.shard.mobile.DownloadFailureTest" time="0.09"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

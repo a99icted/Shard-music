@@ -84,6 +84,7 @@ impl YoutubeDownloadReport {
 
 #[derive(Default, Deserialize)]
 pub(crate) struct DownloadInfo {
+    pub thumbnail: Option<String>,
     pub title: Option<String>,
     pub track: Option<String>,
     pub artist: Option<String>,
@@ -105,6 +106,9 @@ pub(crate) struct DownloadedAudio {
 }
 
 pub(crate) trait YoutubeSource {
+    fn artwork_url(&self) -> Option<&str> {
+        None
+    }
     fn playlist(&self, url: &url::Url, cancel: &AtomicBool) -> Result<YoutubePlaylist>;
     fn track(&self, url: &url::Url, staging: &Path, cancel: &AtomicBool)
     -> Result<DownloadedAudio>;
@@ -165,7 +169,7 @@ fn normalized(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn select_search_results(
+pub(crate) fn select_search_results(
     json: &[u8],
     title: &str,
     artist: &str,

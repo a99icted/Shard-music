@@ -199,6 +199,94 @@ fn main() -> Result<()> {
     player.take_error();
     drop(player);
     std::thread::sleep(Duration::from_millis(200));
+    let autoplay = Player::new(0., false, None);
+    let pool: Vec<_> = [101, 102]
+        .into_iter()
+        .map(|id| PlaybackTrack {
+            id,
+            path: root.path().join("silence.wav"),
+        })
+        .collect();
+    for mode in [
+        shard::queue::PlaybackMode::Ordered,
+        shard::queue::PlaybackMode::Shuffle,
+        shard::queue::PlaybackMode::Endless,
+    ] {
+        let (shuffle, extend) = mode.flags();
+        autoplay.set_shuffle(shuffle);
+        autoplay.set_library(pool.clone(), extend);
+        autoplay.flush_and_wait();
+        ensure!(
+            autoplay.state().track_id.is_none(),
+            "Changing the playback mode started music"
+        );
+        ensure!(
+            autoplay.state().queue.shuffled() == shuffle,
+            "Shuffle mode was not applied"
+        );
+    }
+    autoplay.set_shuffle(false);
+    autoplay.set_library(pool.clone(), true);
+    autoplay.start(vec![pool[0].clone()], 101);
+    wait(&autoplay, |s| s.track_id == Some(101))?;
+    wait(&autoplay, |s| s.track_id == Some(102))?;
+    autoplay.stop();
+    wait(&autoplay, |s| s.track_id.is_none())?;
+    std::thread::sleep(Duration::from_millis(1200));
+    ensure!(
+        autoplay.state().track_id.is_none(),
+        "Stop was undone by autoplay"
+    );
+    autoplay.start(vec![pool[0].clone()], 101);
+    wait(&autoplay, |s| s.track_id == Some(101))?;
+    autoplay.next();
+    wait(&autoplay, |s| s.track_id == Some(102))?;
+    autoplay.set_library(pool, false);
+    wait(&autoplay, |s| s.track_id.is_none())?;
+    drop(autoplay);
+    std::thread::sleep(Duration::from_millis(200));
+    let ignored = Player::new(0., false, None);
+    let pool: Vec<_> = (201..=203)
+        .map(|id| PlaybackTrack {
+            id,
+            path: root.path().join("silence.wav"),
+        })
+        .collect();
+    ignored.set_library(pool.clone(), true);
+    ignored.set_ignored(std::collections::HashSet::from([202]));
+    ignored.start(pool.clone(), 201);
+    wait(&ignored, |s| s.track_id == Some(201))?;
+    ensure!(
+        ignored.state().queue.upcoming() == [203],
+        "Ignored track entered context queue"
+    );
+    ignored.set_ignored(std::collections::HashSet::from([201, 202]));
+    wait(&ignored, |s| s.track_id == Some(203))?;
+    ignored.start(vec![pool[1].clone()], 202);
+    wait(&ignored, |s| s.track_id == Some(202))?;
+    ignored.set_ignored(std::collections::HashSet::from([201, 202]));
+    ignored.flush_and_wait();
+    ensure!(
+        ignored.state().track_id == Some(202),
+        "Refreshing ignore list interrupted explicit playback"
+    );
+    ignored.next();
+    wait(&ignored, |s| s.track_id == Some(203))?;
+    ignored.set_ignored(std::collections::HashSet::from([201, 202, 203]));
+    wait(&ignored, |s| s.track_id.is_none())?;
+    ignored.set_ignored(std::collections::HashSet::new());
+    ignored.start(vec![pool[0].clone()], 201);
+    wait(&ignored, |s| s.track_id == Some(201))?;
+    ignored.set_ignored(std::collections::HashSet::from([201, 202]));
+    wait(&ignored, |s| s.track_id == Some(203))?;
+    ignored.stop();
+    wait(&ignored, |s| s.track_id.is_none())?;
+    println!(
+        "Ignore smoke: queue filtering, immediate skip, explicit replay, refresh, exhausted queue and autoplay passed."
+    );
+    println!(
+        "Autoplay smoke: natural completion, manual next, explicit stop and disabling passed."
+    );
     println!(
         "Audio smoke: playback, repeat one/all, invalid audio, persisted listening time, pause and seek accounting passed."
     );

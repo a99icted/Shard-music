@@ -5,7 +5,7 @@ use image::{DynamicImage, ImageReader};
 use rusqlite::params;
 use std::{fs, path::Path};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Background {
     pub scope: i64,
     pub original_path: String,

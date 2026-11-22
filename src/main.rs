@@ -12,6 +12,30 @@ use gpui::{App, AppContext, Application, Bounds, WindowBounds, WindowOptions, px
 use shard::{db::Database, services::application_directory};
 
 fn main() {
+    // A replacement process waits until the old instance releases files and its mutex.
+    #[cfg(windows)]
+    if std::env::args().nth(1).as_deref() == Some("--restart-after") {
+        if let Some(pid) = std::env::args()
+            .nth(2)
+            .and_then(|pid| pid.parse::<u32>().ok())
+        {
+            use windows_sys::Win32::{
+                Foundation::CloseHandle,
+                System::Threading::{OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject},
+            };
+            unsafe {
+                let process = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+                if !process.is_null() {
+                    let result = WaitForSingleObject(process, 30_000);
+                    CloseHandle(process);
+                    if result != 0 {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(windows)]
     let instance = match single_instance::Instance::acquire() {
         Ok(Some(instance)) => instance,
@@ -52,7 +76,7 @@ fn main() {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
                     window_min_size: Some(size(px(760.), px(520.))),
                     titlebar: Some(gpui::TitlebarOptions {
-                        title: Some("Shard".into()),
+                        title: Some("SHARD".into()),
                         ..Default::default()
                     }),
                     ..Default::default()

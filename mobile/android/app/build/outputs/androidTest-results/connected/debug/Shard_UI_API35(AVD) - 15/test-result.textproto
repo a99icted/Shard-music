@@ -1,20 +1,285 @@
-# 2026-11-18T10:21:50.298860200Z:
+# 2026-11-22T10:10:47.947479400Z:
 test_suite_meta_data {
-  scheduled_test_case_count: 1
+  scheduled_test_case_count: 13
 }
 test_status: PASSED
+test_result {
+  test_case {
+    test_class: "AudioOutputTest"
+    test_package: "music.shard.mobile"
+    test_method: "firstStartQueueReplacementAndTransitionsProduceAudioWithoutSeeking"
+    start_time {
+      seconds: 1795342204
+      nanos: 522000000
+    }
+    end_time {
+      seconds: 1795342227
+      nanos: 798000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.AudioOutputTest-firstStartQueueReplacementAndTransitionsProduceAudioWithoutSeeking.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "DownloadStateTest"
+    test_package: "music.shard.mobile"
+    test_method: "workerReusesAudioThroughRustWithoutNetworkDownload"
+    start_time {
+      seconds: 1795342227
+      nanos: 910000000
+    }
+    end_time {
+      seconds: 1795342228
+      nanos: 824000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.DownloadStateTest-workerReusesAudioThroughRustWithoutNetworkDownload.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "DownloadStateTest"
+    test_package: "music.shard.mobile"
+    test_method: "duplicateChoicesSurviveReloadAndCanBeCancelled"
+    start_time {
+      seconds: 1795342228
+      nanos: 826000000
+    }
+    end_time {
+      seconds: 1795342229
+      nanos: 989000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.DownloadStateTest-duplicateChoicesSurviveReloadAndCanBeCancelled.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "DownloadStateTest"
+    test_package: "music.shard.mobile"
+    test_method: "dismissPersistsAndRetryKeepsSuccessfulAudio"
+    start_time {
+      seconds: 1795342229
+      nanos: 992000000
+    }
+    end_time {
+      seconds: 1795342231
+      nanos: 210000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.DownloadStateTest-dismissPersistsAndRetryKeepsSuccessfulAudio.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "DownloaderNetworkTest"
+    test_package: "music.shard.mobile"
+    test_method: "updateAndDownloadYtDlpTestRecording"
+    start_time {
+      seconds: 1795342231
+      nanos: 239000000
+    }
+    end_time {
+      seconds: 1795342231
+      nanos: 280000000
+    }
+  }
+  test_status: IGNORED
+  error {
+    error_message: "org.junit.AssumptionViolatedException: got: <false>, expected: is <true>\nat org.junit.Assume.assumeThat(Assume.java:106)\nat org.junit.Assume.assumeTrue(Assume.java:50)\nat music.shard.mobile.DownloaderNetworkTest$updateAndDownloadYtDlpTestRecording$1.invokeSuspend(DownloaderNetworkTest.kt:19)\nat kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)\nat kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:104)\nat kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:277)\nat kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)\nat kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)\nat kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source:1)\nat kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:48)\nat kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source:1)\nat music.shard.mobile.DownloaderNetworkTest.updateAndDownloadYtDlpTestRecording(DownloaderNetworkTest.kt:18)\nat java.lang.reflect.Method.invoke(Native Method)\nat org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)\nat org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\nat org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)\nat org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\nat org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\nat org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)\nat org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)\nat org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\nat org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\nat org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\nat org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\nat org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\nat org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\nat org.junit.runners.ParentRunner.run(ParentRunner.java:413)\nat androidx.test.ext.junit.runners.AndroidJUnit4.run(AndroidJUnit4.java:162)\nat org.junit.runners.Suite.runChild(Suite.java:128)\nat org.junit.runners.Suite.runChild(Suite.java:27)\nat org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\nat org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\nat org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\nat org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\nat org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\nat org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\nat org.junit.runners.ParentRunner.run(ParentRunner.java:413)\nat org.junit.runner.JUnitCore.run(JUnitCore.java:137)\nat org.junit.runner.JUnitCore.run(JUnitCore.java:115)\nat androidx.test.internal.runner.TestExecutor.execute(TestExecutor.java:68)\nat androidx.test.internal.runner.TestExecutor.execute(TestExecutor.java:59)\nat androidx.test.runner.AndroidJUnitRunner.onStart(AndroidJUnitRunner.java:463)\nat android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:2594)\n"
+    error_type: "org.junit.AssumptionViolatedException"
+    stack_trace: "org.junit.AssumptionViolatedException: got: <false>, expected: is <true>\nat org.junit.Assume.assumeThat(Assume.java:106)\nat org.junit.Assume.assumeTrue(Assume.java:50)\nat music.shard.mobile.DownloaderNetworkTest$updateAndDownloadYtDlpTestRecording$1.invokeSuspend(DownloaderNetworkTest.kt:19)\nat kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)\nat kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:104)\nat kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:277)\nat kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)\nat kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)\nat kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source:1)\nat kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:48)\nat kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source:1)\nat music.shard.mobile.DownloaderNetworkTest.updateAndDownloadYtDlpTestRecording(DownloaderNetworkTest.kt:18)\nat java.lang.reflect.Method.invoke(Native Method)\nat org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)\nat org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\nat org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)\nat org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\nat org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\nat org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)\nat org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)\nat org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\nat org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\nat org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\nat org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\nat org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\nat org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\nat org.junit.runners.ParentRunner.run(ParentRunner.java:413)\nat androidx.test.ext.junit.runners.AndroidJUnit4.run(AndroidJUnit4.java:162)\nat org.junit.runners.Suite.runChild(Suite.java:128)\nat org.junit.runners.Suite.runChild(Suite.java:27)\nat org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\nat org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\nat org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\nat org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\nat org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\nat org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\nat org.junit.runners.ParentRunner.run(ParentRunner.java:413)\nat org.junit.runner.JUnitCore.run(JUnitCore.java:137)\nat org.junit.runner.JUnitCore.run(JUnitCore.java:115)\nat androidx.test.internal.runner.TestExecutor.execute(TestExecutor.java:68)\nat androidx.test.internal.runner.TestExecutor.execute(TestExecutor.java:59)\nat androidx.test.runner.AndroidJUnitRunner.onStart(AndroidJUnitRunner.java:463)\nat android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:2594)\n"
+  }
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.DownloaderNetworkTest-updateAndDownloadYtDlpTestRecording.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
 test_result {
   test_case {
     test_class: "HotspotSyncTest"
     test_package: "music.shard.mobile"
     test_method: "qrFallbackAdvertisesTheConnectedInterface"
     start_time {
-      seconds: 1794997306
-      nanos: 696000000
+      seconds: 1795342231
+      nanos: 284000000
     }
     end_time {
-      seconds: 1794997306
-      nanos: 912000000
+      seconds: 1795342231
+      nanos: 336000000
     }
   }
   test_status: PASSED
@@ -25,6 +290,370 @@ test_result {
     }
     source_path {
       path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.HotspotSyncTest-qrFallbackAdvertisesTheConnectedInterface.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "IgnoredPlaybackTest"
+    test_package: "music.shard.mobile"
+    test_method: "ignoreSkipsCurrentButDirectPreviewDoesNotRepeat"
+    start_time {
+      seconds: 1795342231
+      nanos: 338000000
+    }
+    end_time {
+      seconds: 1795342233
+      nanos: 475000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.IgnoredPlaybackTest-ignoreSkipsCurrentButDirectPreviewDoesNotRepeat.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "NativeBridgeTest"
+    test_package: "music.shard.mobile"
+    test_method: "importPlaylistFavoriteAndDeleteThroughJni"
+    start_time {
+      seconds: 1795342233
+      nanos: 504000000
+    }
+    end_time {
+      seconds: 1795342233
+      nanos: 581000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.NativeBridgeTest-importPlaylistFavoriteAndDeleteThroughJni.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "NativeBridgeTest"
+    test_package: "music.shard.mobile"
+    test_method: "mediaSessionDecodesPrivateRustImportedAudio"
+    start_time {
+      seconds: 1795342233
+      nanos: 583000000
+    }
+    end_time {
+      seconds: 1795342234
+      nanos: 339000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.NativeBridgeTest-mediaSessionDecodesPrivateRustImportedAudio.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "NavigationTest"
+    test_package: "music.shard.mobile"
+    test_method: "libraryFirstAndSettingsInSeparateTabs"
+    start_time {
+      seconds: 1795342234
+      nanos: 343000000
+    }
+    end_time {
+      seconds: 1795342236
+      nanos: 665000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.NavigationTest-libraryFirstAndSettingsInSeparateTabs.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "NavigationTest"
+    test_package: "music.shard.mobile"
+    test_method: "albumHeaderScrollsAwayAndTitleReturnsOnReverseScroll"
+    start_time {
+      seconds: 1795342236
+      nanos: 667000000
+    }
+    end_time {
+      seconds: 1795342238
+      nanos: 900000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.NavigationTest-albumHeaderScrollsAwayAndTitleReturnsOnReverseScroll.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "PlaybackControlsTest"
+    test_package: "music.shard.mobile"
+    test_method: "notificationAndMiniPlayerShareFavoritesAndPlaybackModes"
+    start_time {
+      seconds: 1795342238
+      nanos: 902000000
+    }
+    end_time {
+      seconds: 1795342243
+      nanos: 209000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.PlaybackControlsTest-notificationAndMiniPlayerShareFavoritesAndPlaybackModes.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "QrScannerTest"
+    test_package: "music.shard.mobile"
+    test_method: "openingAndClosingCameraKeepsLanSessionAlive"
+    start_time {
+      seconds: 1795342243
+      nanos: 236000000
+    }
+    end_time {
+      seconds: 1795342246
+      nanos: 274000000
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "Z:\\developing\\Lozex\\mobile\\android\\app\\build\\outputs\\androidTest-results\\connected\\debug\\Shard_UI_API35(AVD) - 15\\logcat-music.shard.mobile.QrScannerTest-openingAndClosingCameraKeepsLanSessionAlive.txt"
     }
   }
   output_artifact {

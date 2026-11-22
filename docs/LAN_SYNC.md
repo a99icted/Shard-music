@@ -1,7 +1,18 @@
 # Local network transfer protocol, version 2
 
+The next-generation design for desktop and Android is recorded in
+[LIVE_SYNC_DESIGN.ru.md](LIVE_SYNC_DESIGN.ru.md), with shared acceptance scenarios
+in [LIVE_SYNC_ACCEPTANCE.md](LIVE_SYNC_ACCEPTANCE.md). That document describes
+planned live behavior; this page describes the implemented v2 transfer protocol.
+
+Settings now includes **Connected devices** while synchronization is enabled.
+It displays the current session-paired peer, device UUID, endpoint without the
+pairing secret, protocol version and manual transfer action. V2 has no heartbeat;
+session pairing is not proof of current online availability. Stopping sync clears
+this local pairing display. Only one peer is supported by the current protocol.
+
 Implementation: `src/sync.rs` and `src/sync/transfer.rs`. This is the foundation
-for a future mobile client. Transfers start manually from a track or playlist
+shared by desktop and the Android JNI bridge (`src/mobile.rs`). Transfers start manually from a track or playlist
 menu, or **Synchronize all tracks** in Settings → Synchronization or the library
 header. One paired peer and one operation are supported per client at a time.
 Both clients must support version 2; version 1 clients must be updated.
@@ -19,7 +30,14 @@ shard-sync://192.168.1.10:49152/xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 The port is allocated dynamically. The UUID in the path is a random session
 secret. Enabling synchronization again rotates the port and secret; peers must
 reconnect. The stable device UUID is stored in preferences. The desktop displays
-the QR for a future mobile scanner; it does not use a camera.
+the QR; Android can scan it with its local QR scanner or accept a pasted code.
+
+QR codes can include up to seven additional local addresses as repeated `alt`
+query parameters, for example `?alt=192.168.137.1`. Clients prefer the directly
+attached subnet and use the connected interface for the reverse pairing address.
+This supports phone/PC hotspots without depending on the default uplink. Restart
+sync on both devices and scan a fresh QR after a network change. Older clients
+that reject query parameters need updating.
 
 Only private, shared (RFC 6598), loopback and link-local IP addresses are accepted.
 The address comes from the system route, with an interface fallback when a VPN
