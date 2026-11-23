@@ -45,6 +45,24 @@ Windows storage controls are in **Settings → Storage**. To relocate the librar
 
 **Clear storage** asks for confirmation, then removes tracks, their covers and transfer cache from the current library. Playlists remain empty, with their appearance, settings and listening totals preserved. External import sources and previous relocation backups are kept.
 
+On desktop, **Settings → Audio** selects a specific audio output or the system default. The selection is saved, and switching preserves the track, position and pause state. If the selected device is lost, playback tries the system output; stalled audio streams are reopened automatically. With no output device, audio is still decoded at real-time speed and the queue continues; a reconnected device resumes at the current position. **Local playback** can be disabled while keeping the OBS stream running.
+
+OBS has three capture options:
+
+- **Application Audio Capture**: select Shard in OBS. This needs an active Windows endpoint, including HDMI or a virtual device.
+- **Virtual cable**: select an already installed virtual output in Shard and its corresponding input in OBS. Drivers are installed separately.
+- **Audio stream for OBS**: enable it in **Settings → Audio** and copy `http://127.0.0.1:17863/audio.wav`. Add an OBS **Media Source**, uncheck **Local File**, paste the URL, set **Input Format** to **wav**, and uncheck **Close file when inactive**. This works without any audio devices. Pausing or finishing the queue keeps the connection alive with silence. Restart the OBS source after restarting Shard if it does not reconnect automatically.
+
+Shard volume applies to the OBS stream. Disable **Local playback** while retaining the desired player volume if only viewers should hear the audio. Use one capture method per scene to avoid duplicate sound. The stream is 48 kHz stereo 16-bit PCM, is available only on this computer, and accepts up to four clients. Each PCM queue is limited to 80 ms; slow clients cannot block playback. A busy port produces an error; disable the stream in another Shard instance before retrying.
+
+**Settings → Customization → Backgrounds** and the playlist editor accept PNG/JPEG/WebP up to 25 MB, GIF and video (MP4, WebM, MKV, MOV, AVI, M4V) up to 250 MB. Animation loops silently and supports blur from 0–40. GIF and video require bundled FFmpeg or tools installed with `scripts/setup-youtube.ps1`. Frames are decoded sequentially with a bounded queue, up to 960 pixels on the longest side and 24 fps.
+
+**Settings → Customization → Pets** offers a sleeping cat, nesting bird, dancing cats, a pixel frog and a piglet (sleeping and blinking). The frog has sleeping, blinking, breathing, dreaming, headphone, grooving and melancholy smoking loops. Dreaming has no sleep symbols; the melancholy frog has fading smoke and a softly glowing cigarette ember. Both the frog and cat offer pixel headphone and grooving variants with floating, fading notes instead of sleep symbols. All pets use a 64 × 48 pixel display area, about 25% smaller than before, without changing the controls or progress bar position. The eight selected frames use 96 KiB of pixel data; variant previews add at most 672 KiB while these settings are open. These are sprite budgets, not total application memory.
+
+**Settings → Customization → Cursor** independently enables a kitten, frog or piglet that follows the pointer inside the app window. It lets clicks through, settles beside a stationary pointer, and pauses in an inactive window. The selected pet uses 216 KiB of sprite pixels for four directions (left, right, front and back). Speed is adjustable from 20% to 150%, defaulting to 50%; changing it preserves position and animation phase without changing the running frame rate. Movement follows window frames; settled pets schedule no updates.
+
+Fullscreen playback retains the active app or playlist background, including animated media and blur, without starting a second decoder.
+
 ## Install
 
 Choose an asset from [Releases](https://github.com/a99icted/Shard-music/releases):

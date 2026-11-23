@@ -17,42 +17,7 @@ pub struct DownloadTools {
 
 impl DownloadTools {
     pub fn discover(data_directory: &Path) -> Result<Self> {
-        let mut directories = Vec::new();
-        if let Some(directory) =
-            env::var_os("SHARD_TOOLS_DIR").or_else(|| env::var_os("LOZEX_TOOLS_DIR"))
-        {
-            directories.push(PathBuf::from(directory));
-        }
-        directories.push(data_directory.join("tools"));
-        if let Ok(executable) = env::current_exe()
-            && let Some(parent) = executable.parent()
-        {
-            directories.push(parent.join("tools"));
-            directories.push(parent.to_path_buf());
-            // `cargo run` and integration tests live under target/{debug,release}[/deps].
-            let profile = if parent
-                .file_name()
-                .is_some_and(|name| name == "deps" || name == "examples")
-            {
-                parent.parent()
-            } else {
-                Some(parent)
-            };
-            if let Some(target) = profile.and_then(Path::parent)
-                && target.file_name().is_some_and(|name| name == "target")
-                && let Some(project) = target.parent()
-            {
-                directories.push(project.join("tools"));
-            }
-        }
-        if let Some(paths) = env::var_os("PATH") {
-            directories.extend(env::split_paths(&paths).filter(|p| !p.as_os_str().is_empty()));
-        }
-        // Standard MSI installs of Node need not be in an already running app's PATH.
-        #[cfg(windows)]
-        if let Some(program_files) = env::var_os("ProgramFiles") {
-            directories.push(PathBuf::from(program_files).join("nodejs"));
-        }
+        let directories = tool_directories(data_directory);
         Self::from_directories(&directories)
     }
 
@@ -93,6 +58,55 @@ impl DownloadTools {
         }
         command
     }
+}
+
+/// Discover FFmpeg independently of the downloader and JavaScript runtime.
+pub fn ffmpeg(data_directory: &Path) -> Result<PathBuf> {
+    find_executable("ffmpeg", &tool_directories(data_directory))
+        .ok_or_else(|| anyhow::anyhow!(crate::localized_format!(
+            "Для GIF и видео нужен FFmpeg. Установите компоненты через scripts/setup-youtube.ps1.",
+            "GIF and video backgrounds require FFmpeg. Install tools with scripts/setup-youtube.ps1."
+        )))
+}
+
+fn tool_directories(data_directory: &Path) -> Vec<PathBuf> {
+    let mut directories = Vec::new();
+    if let Some(directory) =
+        env::var_os("SHARD_TOOLS_DIR").or_else(|| env::var_os("LOZEX_TOOLS_DIR"))
+    {
+        directories.push(PathBuf::from(directory));
+    }
+    directories.push(data_directory.join("tools"));
+    if let Ok(executable) = env::current_exe()
+        && let Some(parent) = executable.parent()
+    {
+        directories.push(parent.join("tools"));
+        directories.push(parent.to_path_buf());
+        // `cargo run` and integration tests live under target/{debug,release}[/deps].
+        let profile = if parent
+            .file_name()
+            .is_some_and(|name| name == "deps" || name == "examples")
+        {
+            parent.parent()
+        } else {
+            Some(parent)
+        };
+        if let Some(target) = profile.and_then(Path::parent)
+            && target.file_name().is_some_and(|name| name == "target")
+            && let Some(project) = target.parent()
+        {
+            directories.push(project.join("tools"));
+        }
+    }
+    if let Some(paths) = env::var_os("PATH") {
+        directories.extend(env::split_paths(&paths).filter(|p| !p.as_os_str().is_empty()));
+    }
+    // Standard MSI installs of Node need not be in an already running app's PATH.
+    #[cfg(windows)]
+    if let Some(program_files) = env::var_os("ProgramFiles") {
+        directories.push(PathBuf::from(program_files).join("nodejs"));
+    }
+    directories
 }
 
 fn find_executable(name: &str, directories: &[PathBuf]) -> Option<PathBuf> {

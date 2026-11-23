@@ -1,8 +1,12 @@
 use shard::{i18n::tr, localized_format};
 #[path = "ui/artwork.rs"]
 mod artwork;
+#[path = "ui/background_animation.rs"]
+mod background_animation;
 #[path = "ui/components.rs"]
 mod components;
+#[path = "ui/cursor.rs"]
+mod cursor;
 #[path = "ui/devices.rs"]
 mod devices;
 #[path = "ui/downloads.rs"]
@@ -14,6 +18,10 @@ mod home;
 mod ignored;
 #[path = "ui/image_cache.rs"]
 mod image_cache;
+#[path = "ui/now_playing.rs"]
+mod now_playing;
+#[path = "ui/progress.rs"]
+mod progress;
 #[path = "ui/settings.rs"]
 mod settings;
 #[path = "ui/sidebar.rs"]
@@ -62,11 +70,13 @@ actions!(
         PreviousTrack,
         ToggleQueue,
         VolumeUp,
-        VolumeDown
+        VolumeDown,
+        FullscreenTrack
     ]
 );
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
+        KeyBinding::new("f11", FullscreenTrack, Some("MusicApp && !TextInput")),
         KeyBinding::new("escape", Dismiss, None),
         KeyBinding::new("enter", Submit, None),
         KeyBinding::new("space", TogglePlayback, Some("MusicApp && !TextInput")),
@@ -106,6 +116,12 @@ impl Global for UiTheme {}
 
 pub struct MusicApp {
     images: Entity<image_cache::ArtworkCache>,
+    progress: Entity<progress::PlaybackProgress>,
+    cursor_companion: Entity<cursor::CursorCompanion>,
+    library_body: Option<Entity<components::LibraryBody>>,
+    now_playing_open: bool,
+    restore_fullscreen: bool,
+    library_renders: u64,
     image_cache_dirty: bool,
     library_loading: bool,
     thumbnail_cancel: Option<Arc<AtomicBool>>,
@@ -130,12 +146,15 @@ pub struct MusicApp {
     storage_clearing: bool,
     storage_ready: bool,
     settings_category: settings::SettingsCategory,
+    customization_category: settings::CustomizationCategory,
+    pet_picker: Option<Entity<progress::PetPicker>>,
     playlist_name: Entity<TextInput>,
     playlist_name_task: Option<Task<()>>,
     playlist_name_pending: std::collections::HashMap<i64, String>,
     header_color_draft: Option<(i64, Hsla)>,
     background_service: BackgroundService,
     backgrounds: Vec<Background>,
+    background_animation: background_animation::BackgroundAnimation,
     blur_preview: Option<u8>,
     collection_list: ListState,
     collection_tracks: Rc<Vec<Track>>,
@@ -186,7 +205,6 @@ pub struct MusicApp {
     playback_query: String,
     slider_bounds: [Option<Bounds<Pixels>>; 6],
     dragging_slider: Option<components::SliderKind>,
-    seek_preview: Option<u64>,
     last_volume: f32,
 }
 
@@ -251,10 +269,19 @@ impl MusicApp {
         });
         let player = Player::new(preferences.volume, preferences.shuffle, Some(db.clone()));
         player.set_repeat(preferences.repeat);
+        player.set_output_device(preferences.audio_output.clone());
+        player.set_monitoring(preferences.audio_monitoring);
+        player.set_obs_stream(preferences.obs_stream);
         cx.set_global(UiTheme(preferences.theme));
         window.focus(&focus);
         let mut app = Self {
             images: image_cache::ArtworkCache::new(cx),
+            progress: cx.new(|cx| progress::PlaybackProgress::new(player.clone(), window, cx)),
+            cursor_companion: cx.new(|cx| cursor::CursorCompanion::new(window, cx)),
+            library_body: None,
+            now_playing_open: false,
+            restore_fullscreen: false,
+            library_renders: 0,
             image_cache_dirty: false,
             library_loading: false,
             thumbnail_cancel: None,
@@ -279,12 +306,15 @@ impl MusicApp {
             storage_clearing: false,
             storage_ready: false,
             settings_category: settings::SettingsCategory::Customization,
+            customization_category: settings::CustomizationCategory::Themes,
+            pet_picker: None,
             playlist_name: cx.new(|cx| TextInput::new(tr("Название плейлиста"), cx)),
             playlist_name_task: None,
             playlist_name_pending: Default::default(),
             header_color_draft: None,
             background_service: BackgroundService::new(db.clone()),
             backgrounds: vec![],
+            background_animation: Default::default(),
             blur_preview: None,
             collection_list: ListState::new(1, ListAlignment::Top, px(256.)),
             collection_tracks: Rc::new(vec![]),
@@ -340,19 +370,21 @@ impl MusicApp {
             playback_query: String::new(),
             slider_bounds: [None; 6],
             dragging_slider: None,
-            seek_preview: None,
         };
         let name_focus = app.playlist_name.focus_handle(cx);
         cx.on_blur(&name_focus, window, |app, _, cx| {
             app.commit_playlist_name(cx)
         })
         .detach();
+        cx.observe_window_activation(window, |_, _, cx| cx.notify())
+            .detach();
         app.save_preferences();
         if app.preferences.sync_enabled {
             app.start_sync(cx);
         }
         app.refresh(cx);
-        cx.on_release(|app, _| {
+        cx.on_release(|app, cx| {
+            drop(app.background_animation.suspend(cx));
             if let Some(cancel) = &app.thumbnail_cancel {
                 cancel.store(true, Ordering::Relaxed);
             }
@@ -367,6 +399,7 @@ impl MusicApp {
         })
         .detach();
         cx.on_app_quit(|app, cx| {
+            drop(app.background_animation.suspend(cx));
             if let Some(cancel) = &app.thumbnail_cancel {
                 cancel.store(true, Ordering::Relaxed);
             }
@@ -408,7 +441,8 @@ impl MusicApp {
                     .await;
                 if this
                     .update_in(cx, |app, window, cx| {
-                        let snapshot = app.player.progress();
+                        let progress = app.player.progress();
+                        let snapshot = (progress.0, progress.1);
                         let mut changed = last_player != Some(snapshot);
                         if let Some(request) = app
                             .sync_duplicate_requests
@@ -432,7 +466,7 @@ impl MusicApp {
                             }
                         }
                         last_player = Some(snapshot);
-                        if window.is_window_active()
+                        if (window.is_window_active() || app.preferences.refresh_inactive)
                             && app.home_open
                             && snapshot.0.is_some()
                             && !snapshot.1
@@ -464,7 +498,9 @@ impl MusicApp {
                                 app.refresh(cx);
                             }
                         }
-                        if changed && window.is_window_active() {
+                        if changed
+                            && (window.is_window_active() || app.preferences.refresh_inactive)
+                        {
                             cx.notify();
                         }
                     })
@@ -582,6 +618,9 @@ impl MusicApp {
                             visible.iter().filter_map(|t| t.duration_ms).sum();
                         app.visible_tracks = visible;
                         app.backgrounds = backgrounds;
+                        if app.busy.is_none() {
+                            app.background_animation.resume();
+                        }
                         app.loaded_playlist = selected;
                         app.collection_dirty = true;
                         app.prepare_previews(previews.pending, cx);
@@ -740,6 +779,10 @@ impl MusicApp {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
+        if self.now_playing_open {
+            self.toggle_now_playing(window, cx);
+            return;
+        }
         if let Some(Modal::SyncOptionsHelp(selection)) = self.modal.clone() {
             self.open_modal(Modal::SyncOptions(selection), window, cx);
             return;
@@ -1183,9 +1226,15 @@ impl MusicApp {
         let service = self.playlists_service.clone();
         let id = playlist.id;
         self.modal = None;
+        let video = self.background_animation.suspend(cx);
         self.run_job(
             tr("Удаляем плейлист…"),
-            move || service.delete_playlist(id),
+            move || {
+                if let Some(video) = video {
+                    video.stop();
+                }
+                service.delete_playlist(id)
+            },
             move |app, (), _| {
                 if app.selected_playlist == Some(id) {
                     app.selected_playlist = None;
@@ -1924,7 +1973,7 @@ impl MusicApp {
 }
 
 impl MusicApp {
-    fn button(&self, id: &'static str, label: &str, primary: bool) -> Stateful<Div> {
+    fn button(&self, id: impl Into<ElementId>, label: &str, primary: bool) -> Stateful<Div> {
         let colors = self.colors();
         div()
             .id(id)

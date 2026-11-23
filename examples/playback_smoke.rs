@@ -95,6 +95,43 @@ fn main() -> Result<()> {
     player.toggle();
     wait(&player, |state| state.paused)?;
     ensure!(transport.try_recv()?.paused, "Pause was not published");
+    let position = player.state().position_ms;
+    let queue = player.state().queue.upcoming().to_vec();
+    player.refresh_output_devices();
+    player.flush_and_wait();
+    ensure!(
+        !player.state().output_devices.is_empty(),
+        "No audio outputs listed"
+    );
+    let output = player.state().output_devices[0].clone();
+    player.set_output_device(Some(output));
+    player.flush_and_wait();
+    ensure!(
+        player.state().paused,
+        "Output change resumed paused playback"
+    );
+    ensure!(
+        player.state().position_ms.abs_diff(position) <= 25,
+        "Output change lost paused position: before={position}, after={}",
+        player.state().position_ms
+    );
+    ensure!(
+        player.state().queue.upcoming() == queue,
+        "Output change modified queue"
+    );
+    player.set_output_device(Some("Disconnected fixture output".into()));
+    player.flush_and_wait();
+    ensure!(
+        player.state().active_output.is_some(),
+        "Missing output did not fall back to default"
+    );
+    ensure!(player.state().paused, "Fallback resumed paused playback");
+    player.set_output_device(None);
+    player.flush_and_wait();
+    ensure!(player.take_error().is_none(), "Output switching failed");
+    println!(
+        "Audio outputs: enumeration, paused position, queue preservation and missing-device fallback passed."
+    );
     player.set_volume(0.25);
     player.set_shuffle(true);
     wait(&player, |state| state.queue.shuffled())?;

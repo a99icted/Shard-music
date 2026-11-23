@@ -65,6 +65,9 @@ mod windows {
     };
 
     struct Handle(HANDLE);
+    // These are owned kernel handles (jobs, threads and snapshots), with no COM
+    // apartment or thread affinity. Ownership may move to a cleanup worker.
+    unsafe impl Send for Handle {}
     impl Drop for Handle {
         fn drop(&mut self) {
             unsafe {

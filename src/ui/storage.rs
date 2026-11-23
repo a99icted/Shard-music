@@ -134,7 +134,11 @@ impl MusicApp {
         let writer = self.preferences_writer.clone();
         let player = self.player.clone();
         let sync = self.sync_service.take();
+        let video = self.background_animation.suspend(cx);
         let task = cx.background_executor().spawn(async move {
+            if let Some(video) = video {
+                video.stop();
+            }
             if let Some(sync) = sync {
                 sync.stop();
             }

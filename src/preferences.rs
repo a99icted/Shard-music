@@ -78,6 +78,18 @@ pub struct Preferences {
     pub sync_device_name: String,
     pub language: crate::i18n::Language,
     pub volume: f32,
+    pub audio_output: Option<String>,
+    pub audio_monitoring: bool,
+    pub obs_stream: bool,
+    pub refresh_inactive: bool,
+    pub progress_pet: crate::pets::ProgressPet,
+    pub cat_color: crate::pets::PetColor,
+    pub bird_color: crate::pets::PetColor,
+    pub dancing_cats_color: crate::pets::PetColor,
+    pub frog_variant: crate::pets::PetColor,
+    pub pig_variant: crate::pets::PetColor,
+    pub cursor_pet: crate::pets::CursorPet,
+    pub cursor_pet_speed: u16,
     pub shuffle: bool,
     pub queue_visible: bool,
     pub autoplay: bool,
@@ -96,6 +108,18 @@ impl Default for Preferences {
             sync_device_name: std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Shard".into()),
             language: crate::i18n::Language::Russian,
             volume: 0.7,
+            audio_output: None,
+            audio_monitoring: true,
+            obs_stream: false,
+            refresh_inactive: false,
+            progress_pet: Default::default(),
+            cat_color: Default::default(),
+            bird_color: Default::default(),
+            dancing_cats_color: Default::default(),
+            frog_variant: Default::default(),
+            pig_variant: Default::default(),
+            cursor_pet: Default::default(),
+            cursor_pet_speed: 50,
             shuffle: false,
             queue_visible: true,
             autoplay: false,
@@ -119,6 +143,7 @@ impl Preferences {
         } else {
             0.7
         };
+        preferences.cursor_pet_speed = preferences.cursor_pet_speed.clamp(20, 150);
         preferences
     }
     pub fn save(&self, root: &Path) -> Result<()> {
@@ -158,6 +183,17 @@ mod tests {
             language: crate::i18n::Language::English,
             sidebar_collapsed: true,
             volume: 0.32,
+            audio_output: Some("Headphones".into()),
+            audio_monitoring: false,
+            obs_stream: true,
+            refresh_inactive: true,
+            progress_pet: crate::pets::ProgressPet::Frog,
+            cat_color: crate::pets::PetColor::Grooving,
+            bird_color: crate::pets::PetColor::White,
+            dancing_cats_color: crate::pets::PetColor::Gray,
+            frog_variant: crate::pets::PetColor::Melancholy,
+            cursor_pet: crate::pets::CursorPet::Frog,
+            cursor_pet_speed: 35,
             shuffle: true,
             queue_visible: false,
             theme: crate::theme::Theme::Onyx,
@@ -171,13 +207,36 @@ mod tests {
         let reopened = Preferences::load(root.path());
         assert!(reopened.sidebar_collapsed);
         assert_eq!(reopened.volume, 0.32);
+        assert_eq!(reopened.audio_output.as_deref(), Some("Headphones"));
+        assert!(!reopened.audio_monitoring);
+        assert!(reopened.obs_stream);
         assert_eq!(reopened.language, crate::i18n::Language::English);
+        assert!(reopened.refresh_inactive);
+        assert_eq!(reopened.progress_pet, crate::pets::ProgressPet::Frog);
+        assert_eq!(reopened.cat_color, crate::pets::PetColor::Grooving);
+        assert_eq!(reopened.bird_color, crate::pets::PetColor::White);
+        assert_eq!(reopened.dancing_cats_color, crate::pets::PetColor::Gray);
+        assert_eq!(reopened.frog_variant, crate::pets::PetColor::Melancholy);
+        assert_eq!(reopened.cursor_pet, crate::pets::CursorPet::Frog);
+        assert_eq!(reopened.cursor_pet_speed, 35);
         assert!(reopened.shuffle);
         assert!(!reopened.queue_visible);
         assert_eq!(reopened.theme, crate::theme::Theme::Onyx);
         assert_eq!(reopened.repeat, crate::queue::RepeatMode::One);
         assert!(!reopened.sync_warn_duplicates);
         assert!(reopened.sync_ignore_duplicates);
+        Preferences {
+            progress_pet: crate::pets::ProgressPet::Pig,
+            cursor_pet: crate::pets::CursorPet::Pig,
+            pig_variant: crate::pets::PetColor::Gray,
+            ..preferences.clone()
+        }
+        .save(root.path())
+        .unwrap();
+        let pig = Preferences::load(root.path());
+        assert_eq!(pig.progress_pet, crate::pets::ProgressPet::Pig);
+        assert_eq!(pig.cursor_pet, crate::pets::CursorPet::Pig);
+        assert_eq!(pig.pig_variant, crate::pets::PetColor::Gray);
         for theme in [crate::theme::Theme::PickMe, crate::theme::Theme::Cosmic] {
             Preferences {
                 theme,
@@ -192,6 +251,11 @@ mod tests {
         fs::write(root.path().join("settings.json"), r#"{"volume":4}"#).unwrap();
         let upgraded = Preferences::load(root.path());
         assert!(!upgraded.sidebar_collapsed);
+        assert!(upgraded.audio_output.is_none());
+        assert!(upgraded.audio_monitoring);
+        assert!(!upgraded.obs_stream);
+        assert_eq!(upgraded.cursor_pet, crate::pets::CursorPet::None);
+        assert_eq!(upgraded.cursor_pet_speed, 50);
         assert_eq!(upgraded.volume, 1.0);
         assert!(upgraded.sync_warn_duplicates);
         assert!(!upgraded.sync_ignore_duplicates);

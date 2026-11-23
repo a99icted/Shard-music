@@ -13,6 +13,19 @@ pub struct Background {
     pub blur: u8,
 }
 
+impl Background {
+    pub fn is_animated(&self) -> bool {
+        let extension = Path::new(&self.original_path)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        matches!(
+            extension,
+            "gif" | "mp4" | "webm" | "mkv" | "mov" | "avi" | "m4v"
+        )
+    }
+}
+
 #[derive(Clone)]
 pub struct BackgroundService {
     db: Database,
@@ -103,6 +116,53 @@ impl BackgroundService {
         }
         Ok(())
     }
+    #[cfg(feature = "desktop")]
+    pub fn set_media(&self, scope: i64, source: &Path) -> Result<()> {
+        if !crate::background_video::is_animated(source) {
+            return self.set_image(scope, source);
+        }
+        ensure!(scope >= 0, tr("Некорректная область фона"));
+        ensure!(
+            fs::metadata(source)?.len() <= 250 * 1024 * 1024,
+            crate::localized_format!(
+                "Выберите GIF или видео до 250 МБ",
+                "Choose a GIF or video up to 250 MB"
+            )
+        );
+        let previous = self.list()?.into_iter().find(|b| b.scope == scope);
+        let blur = previous.as_ref().map(|b| b.blur).unwrap_or(12);
+        let directory = self.db.root().join("backgrounds");
+        fs::create_dir_all(&directory)?;
+        let extension = source
+            .extension()
+            .unwrap()
+            .to_string_lossy()
+            .to_ascii_lowercase();
+        let original = format!("backgrounds/{}.{extension}", uuid::Uuid::new_v4());
+        // Copy first so a failed import cannot replace the user's existing background.
+        let mut file = tempfile::NamedTempFile::new_in(&directory)?;
+        std::io::copy(&mut fs::File::open(source)?, file.as_file_mut())?;
+        let image = crate::background_video::poster(self.db.root(), file.path())?;
+        let display = self.render(&image, blur)?;
+        if let Err(error) = file.persist(self.db.root().join(&original)) {
+            self.clean(&display);
+            return Err(error.into());
+        }
+        if let Err(error) = self.db.connect().and_then(|conn| {
+            conn.execute("INSERT INTO backgrounds(scope_id,playlist_id,original_path,display_path,blur) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(scope_id) DO UPDATE SET original_path=excluded.original_path,display_path=excluded.display_path,blur=excluded.blur",
+                params![scope, (scope > 0).then_some(scope), original, display, blur])?;
+            Ok(())
+        }) {
+            self.clean(&original);
+            self.clean(&display);
+            return Err(error);
+        }
+        if let Some(old) = previous {
+            self.clean(&old.original_path);
+            self.clean(&old.display_path);
+        }
+        Ok(())
+    }
     pub fn set_blur(&self, scope: i64, blur: u8) -> Result<()> {
         ensure!(blur <= 40, tr("Размытие должно быть от 0 до 40"));
         let old = self
@@ -110,7 +170,19 @@ impl BackgroundService {
             .into_iter()
             .find(|b| b.scope == scope)
             .context(tr("Сначала выберите фон"))?;
-        let image = Self::load_image(&self.db.root().join(&old.original_path))?;
+        let source = self.db.root().join(&old.original_path);
+        let image = if old.is_animated() {
+            #[cfg(feature = "desktop")]
+            {
+                crate::background_video::poster(self.db.root(), &source)?
+            }
+            #[cfg(not(feature = "desktop"))]
+            {
+                anyhow::bail!("Animated backgrounds require the desktop app");
+            }
+        } else {
+            Self::load_image(&source)?
+        };
         let conn = self.db.connect()?;
         let display = self.render(&image, blur)?;
         if let Err(e) = conn.execute(

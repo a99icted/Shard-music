@@ -24,6 +24,228 @@ mod ui {
         app.settings_category = settings::SettingsCategory::ConnectedDevices;
     }
 
+    pub fn show_now_playing(_app: &mut MusicApp, window: &mut Window, cx: &mut Context<MusicApp>) {
+        cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(50))
+                    .await;
+                if this
+                    .read_with(cx, |app, _| {
+                        !app.library_loading && app.thumbnail_cancel.is_none()
+                    })
+                    .unwrap()
+                {
+                    break;
+                }
+            }
+            this.update_in(cx, |app, window, cx| {
+                let queue: Vec<_> = app
+                    .tracks
+                    .iter()
+                    .map(|track| PlaybackTrack {
+                        id: track.id,
+                        path: app.data_directory.join(&track.file_path),
+                    })
+                    .collect();
+                let selected = queue[0].id;
+                app.player.start(queue, selected);
+                app.player.set_repeat(RepeatMode::All);
+                app.preferences.progress_pet = shard::pets::ProgressPet::Bird;
+                app.preferences.refresh_inactive = true;
+                app.toggle_now_playing(window, cx);
+            })
+            .unwrap();
+        })
+        .detach();
+    }
+    pub fn show_pets(app: &mut MusicApp, frog: bool, pig: bool) {
+        app.settings_open = true;
+        app.settings_category = settings::SettingsCategory::Customization;
+        app.customization_category = settings::CustomizationCategory::Pets;
+        app.preferences.progress_pet = if pig {
+            shard::pets::ProgressPet::Pig
+        } else if frog {
+            shard::pets::ProgressPet::Frog
+        } else {
+            shard::pets::ProgressPet::Bird
+        };
+        app.preferences.refresh_inactive = true;
+    }
+    pub fn choose_variant(app: &mut MusicApp, variant: shard::pets::PetColor) {
+        app.preferences.cat_color = shard::pets::ProgressPet::Cat.normalize_color(variant);
+        app.preferences.frog_variant = variant;
+    }
+    pub fn show_cursor(app: &mut MusicApp) {
+        app.settings_open = true;
+        app.settings_category = settings::SettingsCategory::Customization;
+        app.customization_category = settings::CustomizationCategory::Cursor;
+        app.preferences.cursor_pet = shard::pets::CursorPet::Kitten;
+    }
+    pub fn visual_check(
+        app: &mut MusicApp,
+        fullscreen: bool,
+        frog: bool,
+        pig: bool,
+        cursor_check: bool,
+        window: &mut Window,
+        cx: &mut Context<MusicApp>,
+    ) {
+        app.preferences.progress_pet = if pig {
+            shard::pets::ProgressPet::Pig
+        } else if frog {
+            shard::pets::ProgressPet::Frog
+        } else {
+            shard::pets::ProgressPet::Cat
+        };
+        app.preferences.refresh_inactive = true;
+        app.home_open = false;
+        cx.spawn_in(window, async move |this, cx| {
+            for _ in 0..200 {
+                cx.background_executor().timer(Duration::from_millis(50)).await;
+                if this.read_with(cx, |app, _| !app.library_loading && app.thumbnail_cancel.is_none()).unwrap() { break; }
+            }
+            let expected_background = this.update_in(cx, |app, window, cx| {
+                assert!(!app.tracks.is_empty());
+                let track = &app.tracks[0];
+                app.player.start(vec![PlaybackTrack { id: track.id, path: app.data_directory.join(&track.file_path) }], track.id);
+                let background = app.active_background().cloned();
+                if fullscreen { app.toggle_now_playing(window, cx); }
+                cx.notify();
+                background
+            }).unwrap();
+            // Image loading and entry transitions may outlive metadata loading
+            // on a busy machine. Measure steady playback after those settle.
+            let mut previous = None;
+            let mut quiet = 0;
+            for _ in 0..40 {
+                cx.background_executor().timer(Duration::from_millis(250)).await;
+                let count = this.read_with(cx, |app, _| app.library_renders).unwrap();
+                quiet = if previous == Some(count) { quiet + 1 } else { 0 };
+                previous = Some(count);
+                if quiet >= 2 { break; }
+            }
+            assert!(quiet >= 2, "Library redraws never settled after startup");
+            if cursor_check {
+                this.update_in(cx, |app, window, cx| {
+                    window.activate_window();
+                    app.preferences.cursor_pet = shard::pets::CursorPet::Kitten;
+                    app.cursor_companion.update(cx, |view, cx| view.configure(app.preferences.cursor_pet, app.preferences.cursor_pet_speed, window, cx));
+                    cx.notify();
+                }).unwrap();
+                cx.background_executor().timer(Duration::from_millis(400)).await;
+                this.update_in(cx, |app, window, cx| app.cursor_companion.update(cx, |view, cx| view.follow(point(px(100.), px(100.)), window, cx))).unwrap();
+                let cadence_before = this.read_with(cx, |app, cx| app.cursor_companion.read(cx).diagnostics().1).unwrap();
+                let cadence_started = Instant::now();
+                cx.background_executor().timer(Duration::from_millis(500)).await;
+                let cadence_after = this.read_with(cx, |app, cx| app.cursor_companion.read(cx).diagnostics().1).unwrap();
+                println!("Cursor movement cadence: {:.1} updates/s", (cadence_after - cadence_before) as f32 / cadence_started.elapsed().as_secs_f32());
+            }
+            let before = this.read_with(cx, |app, _| app.library_renders).unwrap();
+            cx.background_executor().timer(Duration::from_secs(if cursor_check { 4 } else { 2 })).await;
+            this.update_in(cx, |app, window, cx| {
+                let delta = app.library_renders - before;
+                println!("Library rendered {delta} times during pet animation");
+                assert!(delta <= 2, "Animation invalidates the library body");
+                let progress = app.progress.read(cx);
+                assert_eq!(progress.frames.len(), 8);
+                let sprite_bytes: usize = progress.frames.iter().map(|frame| frame.as_bytes(0).unwrap().len()).sum();
+                assert_eq!(sprite_bytes, 96 * 1024, "Selected pet must use small display frames");
+                assert!(progress.bounds.is_some(), "Progress must have visible bounds");
+                println!("Progress bounds: {:?}", progress.bounds);
+                if cursor_check {
+                    let (moving, ticks, bytes) = app.cursor_companion.read(cx).diagnostics();
+                    assert!(ticks > 5, "Cursor companion did not animate in the active window");
+                    assert!(!moving, "Cursor companion did not settle beside its target");
+                    assert_eq!(bytes, 216 * 1024);
+                    println!("Cursor companion settled after {ticks} ticks, using {bytes} bytes");
+                }
+                if fullscreen {
+                    assert!(window.is_fullscreen());
+                    assert_eq!(app.active_background(), expected_background.as_ref(), "Fullscreen replaced the active background");
+                    if expected_background.as_ref().is_some_and(|b| b.is_animated()) {
+                        let frames = app.background_animation.displayed_frames(cx);
+                        assert!(frames > 5, "Animated background stopped in fullscreen");
+                        println!("Fullscreen background displayed {frames} animated frames");
+                    }
+                    app.toggle_now_playing(window, cx);
+                    assert!(!app.now_playing_open);
+                }
+                app.preferences.progress_pet = shard::pets::ProgressPet::None;
+                cx.notify();
+            }).unwrap();
+            cx.background_executor().timer(Duration::from_millis(500)).await;
+            this.update_in(cx, |app, window, cx| {
+                if fullscreen {
+                    assert!(!window.is_fullscreen(), "Fullscreen exit did not complete");
+                    // Missing artwork must not affect the chosen app background.
+                    let path = shard::artwork::track_path(&app.data_directory, &app.tracks[0]);
+                    app.preview_paths.remove(&path);
+                    app.toggle_now_playing(window, cx);
+                    assert_eq!(app.active_background(), expected_background.as_ref());
+                }
+                app.preferences.progress_pet = shard::pets::ProgressPet::None;
+                cx.notify();
+            }).unwrap();
+            cx.background_executor().timer(Duration::from_millis(300)).await;
+            let bounds = this.read_with(cx, |app, cx| app.progress.read(cx).bounds).unwrap();
+            this.update_in(cx, |app, _, cx| { app.preferences.progress_pet = shard::pets::ProgressPet::Bird; cx.notify(); }).unwrap();
+            cx.background_executor().timer(Duration::from_millis(500)).await;
+            this.read_with(cx, |app, cx| {
+                assert_eq!(bounds, app.progress.read(cx).bounds, "Pet selection moved the progress bar");
+                println!("Visual regression passed: cached library, bounded sprites, fixed control geometry, fullscreen and missing artwork");
+            }).unwrap();
+            if cursor_check {
+                // Layout changes can deliver the real pointer position after the
+                // synthetic target above. Wait for that final chase to settle.
+                let settling = Instant::now();
+                loop {
+                    cx.background_executor().timer(Duration::from_millis(100)).await;
+                    let moving = this.read_with(cx, |app, cx| app.cursor_companion.read(cx).diagnostics().0).unwrap();
+                    if !moving { break; }
+                    assert!(settling.elapsed() < Duration::from_secs(5), "Cursor companion never settled");
+                }
+                let idle_ticks = this.read_with(cx, |app, cx| app.cursor_companion.read(cx).diagnostics().1).unwrap();
+                cx.background_executor().timer(Duration::from_millis(300)).await;
+                this.read_with(cx, |app, cx| {
+                    assert_eq!(idle_ticks, app.cursor_companion.read(cx).diagnostics().1, "Idle companion keeps ticking");
+                }).unwrap();
+                this.update_in(cx, |app, window, cx| {
+                    let bounds = app.progress.read(cx).bounds.unwrap();
+                    let click = point(bounds.center().x + px(20.), bounds.center().y);
+                    app.player.toggle();
+                    app.preferences.cursor_pet = shard::pets::CursorPet::Frog;
+                    app.cursor_companion.update(cx, |view, cx| {
+                        view.configure(app.preferences.cursor_pet, app.preferences.cursor_pet_speed, window, cx);
+                        view.follow(point(click.x - px(26.), click.y - px(24.)), window, cx);
+                    });
+                    cx.notify();
+                }).unwrap();
+                cx.background_executor().timer(Duration::from_secs(4)).await;
+                this.read_with(cx, |app, cx| {
+                    let (moving, _, bytes) = app.cursor_companion.read(cx).diagnostics();
+                    assert!(!moving);
+                    assert_eq!(bytes, 216 * 1024);
+                    assert!(app.player.progress().1);
+                }).unwrap();
+                this.update_in(cx, |app, window, cx| {
+                    app.preferences.cursor_pet = shard::pets::CursorPet::None;
+                    app.cursor_companion.update(cx, |view, cx| view.configure(app.preferences.cursor_pet, app.preferences.cursor_pet_speed, window, cx));
+                    assert_eq!(app.cursor_companion.read(cx).diagnostics().2, 0);
+                    println!("Cursor regression passed: both animals, idle sleep, released disabled frames");
+                }).unwrap();
+            }
+            let _ = cx.update(|_, cx| cx.quit());
+        }).detach();
+    }
+
+    pub fn show_audio(app: &mut MusicApp) {
+        app.home_open = false;
+        app.settings_open = true;
+        app.settings_category = settings::SettingsCategory::Audio;
+        app.player.refresh_output_devices();
+    }
+
     // Regression: old libraries must appear before thumbnail migration finishes,
     // including when one cover is corrupt. Navigation must remain independent.
     pub fn check_startup_artwork(
@@ -189,6 +411,22 @@ fn main() -> Result<()> {
     let width: f32 = args.next().unwrap_or("960".into()).parse()?;
     let height: f32 = args.next().unwrap_or("640".into()).parse()?;
     let options: Vec<_> = args.collect();
+    let show_audio = options.iter().any(|arg| arg == "--audio");
+    let show_now_playing = options.iter().any(|arg| arg == "--now-playing");
+    let show_pets = options.iter().any(|arg| arg == "--pets");
+    let show_frog = options.iter().any(|arg| arg == "--frog");
+    let show_pig = options.iter().any(|arg| arg == "--pig");
+    let listening = options.iter().any(|arg| arg == "--headphones");
+    let grooving = options.iter().any(|arg| arg == "--grooving");
+    let melancholy = options.iter().any(|arg| arg == "--melancholy");
+    let show_cursor = options.iter().any(|arg| arg == "--cursor");
+    let cursor_check = options.iter().any(|arg| arg == "--cursor-check");
+    let visual_check = options.iter().any(|arg| arg == "--visual-check");
+    let fullscreen_check = options.iter().any(|arg| arg == "--fullscreen-check");
+    let background_source = options
+        .iter()
+        .find_map(|arg| arg.strip_prefix("--background="))
+        .map(std::path::PathBuf::from);
     let show_ignored = options.iter().any(|arg| arg == "--ignored");
     let show_devices = options.iter().any(|arg| arg == "--devices");
     let simulate_download = options.iter().any(|arg| arg == "--download");
@@ -227,12 +465,18 @@ fn main() -> Result<()> {
     })
     .save(&cover_path)?;
     shard::appearance::AppearanceService::new(db.clone()).set_cover(playlist, &cover_path)?;
+    if fullscreen_check && background_source.is_none() {
+        shard::backgrounds::BackgroundService::new(db.clone()).set_image(0, &cover_path)?;
+    }
     if check_startup_artwork {
         anyhow::ensure!(
             track_count > 16,
             "Startup regression needs more than two thumbnail batches"
         );
         shard::backgrounds::BackgroundService::new(db.clone()).set_image(0, &cover_path)?;
+    }
+    if let Some(source) = &background_source {
+        shard::backgrounds::BackgroundService::new(db.clone()).set_media(0, source)?;
     }
     println!("Preview cover: {}", cover_path.display());
     // Twenty seconds of silence, sufficient for inspecting active playback.
@@ -334,6 +578,42 @@ fn main() -> Result<()> {
                             }
                         }
                         let mut app = ui::MusicApp::new(db, window, cx);
+                        if listening || grooving || melancholy {
+                            let variant = if melancholy {
+                                shard::pets::PetColor::Melancholy
+                            } else if grooving {
+                                shard::pets::PetColor::Grooving
+                            } else {
+                                shard::pets::PetColor::Headphones
+                            };
+                            ui::choose_variant(&mut app, variant);
+                        }
+                        if show_audio {
+                            ui::show_audio(&mut app);
+                        }
+                        if (show_pets || show_frog || show_pig)
+                            && !visual_check
+                            && !fullscreen_check
+                        {
+                            ui::show_pets(&mut app, show_frog, show_pig);
+                        }
+                        if show_cursor {
+                            ui::show_cursor(&mut app);
+                        }
+                        if show_now_playing {
+                            ui::show_now_playing(&mut app, window, cx);
+                        }
+                        if visual_check || fullscreen_check {
+                            ui::visual_check(
+                                &mut app,
+                                fullscreen_check,
+                                show_frog,
+                                show_pig,
+                                cursor_check,
+                                window,
+                                cx,
+                            );
+                        }
                         if show_ignored {
                             ui::show_ignored(&mut app);
                         }

@@ -3,11 +3,11 @@ use super::*;
 #[derive(Clone, Copy)]
 pub(super) enum SliderKind {
     Volume,
-    Seek,
     BackgroundBlur,
     HeaderHue,
     HeaderSaturation,
     HeaderLightness,
+    CursorPetSpeed,
 }
 impl SliderKind {
     fn is_header(self) -> bool {
@@ -20,11 +20,11 @@ impl SliderKind {
     fn index(self) -> usize {
         match self {
             Self::Volume => 0,
-            Self::Seek => 1,
-            Self::BackgroundBlur => 2,
-            Self::HeaderHue => 3,
-            Self::HeaderSaturation => 4,
-            Self::HeaderLightness => 5,
+            Self::BackgroundBlur => 1,
+            Self::HeaderHue => 2,
+            Self::HeaderSaturation => 3,
+            Self::HeaderLightness => 4,
+            Self::CursorPetSpeed => 5,
         }
     }
 }
@@ -1004,27 +1004,22 @@ impl MusicApp {
                 cx.notify();
             }
             SliderKind::Volume => self.set_volume(value, cx),
+            SliderKind::CursorPetSpeed => {
+                self.preferences.cursor_pet_speed = 20 + (value * 130.).round() as u16;
+                cx.notify();
+            }
             SliderKind::BackgroundBlur => {
                 self.blur_preview = Some((value * 40.).round() as u8);
                 cx.notify();
-            }
-            SliderKind::Seek => {
-                let current = self.player.progress().0;
-                if let Some(duration) = self
-                    .tracks
-                    .iter()
-                    .find(|track| Some(track.id) == current)
-                    .and_then(|track| track.duration_ms)
-                {
-                    self.seek_preview = Some((duration.max(0) as f64 * value as f64) as u64);
-                    cx.notify();
-                }
             }
         }
     }
 
     fn finish_slider(&mut self, cx: &mut Context<Self>) {
-        match self.dragging_slider.take() {
+        let Some(kind) = self.dragging_slider.take() else {
+            return;
+        };
+        match Some(kind) {
             Some(SliderKind::BackgroundBlur) => {
                 if let Some(blur) = self.blur_preview.take() {
                     self.apply_background_blur(self.background_scope(), blur, cx);
@@ -1037,12 +1032,7 @@ impl MusicApp {
                     self.set_playlist_color(id, Some(Self::header_color_value(color)), cx);
                 }
             }
-            Some(SliderKind::Volume) => self.save_preferences(),
-            Some(SliderKind::Seek) => {
-                if let Some(position) = self.seek_preview.take() {
-                    self.player.seek(position);
-                }
-            }
+            Some(SliderKind::Volume | SliderKind::CursorPetSpeed) => self.save_preferences(),
             None => {}
         }
         cx.notify();
@@ -1055,16 +1045,6 @@ impl MusicApp {
             .track_id
             .and_then(|id| self.track_index.get(&id))
             .and_then(|index| self.tracks.get(*index));
-        let position = self.seek_preview.unwrap_or(state.position_ms);
-        let duration = current
-            .and_then(|track| track.duration_ms)
-            .unwrap_or(0)
-            .max(0) as u64;
-        let progress = if duration > 0 {
-            position as f32 / duration as f32
-        } else {
-            0.
-        };
         let mut caption = div()
             .flex_1()
             .min_w_0()
@@ -1210,26 +1190,7 @@ impl MusicApp {
                         .on_click(cx.listener(|app, _, _, cx| app.cycle_repeat(cx))),
                     ),
             )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .text_xs()
-                    .text_color(rgb(colors.muted))
-                    .child(div().w_10().child(format_duration(Some(position as i64))))
-                    .child(div().flex_1().child(self.slider(
-                        "seek-slider",
-                        SliderKind::Seek,
-                        progress,
-                        cx,
-                    )))
-                    .child(
-                        div()
-                            .w_10()
-                            .child(format_duration(current.and_then(|track| track.duration_ms))),
-                    ),
-            );
+            .child(self.progress_view());
         let volume_tools = div()
             .w(px(if compact { 264. } else { 280. }))
             .max_w_full()
@@ -1237,6 +1198,19 @@ impl MusicApp {
             .flex()
             .items_center()
             .gap_2()
+            .child(
+                self.icon_button("expand-track", "⛶", self.now_playing_open)
+                    .tooltip(|_, cx| {
+                        cx.new(|_| {
+                            super::sidebar::SidebarTooltip(localized_format!(
+                                "Полный экран · F11",
+                                "Fullscreen · F11"
+                            ))
+                        })
+                        .into()
+                    })
+                    .on_click(cx.listener(|app, _, window, cx| app.toggle_now_playing(window, cx))),
+            )
             .child(
                 div()
                     .id("toggle-queue")
@@ -1490,6 +1464,7 @@ impl MusicApp {
 
 impl Render for MusicApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.update_background_animation(window, cx);
         if self.image_cache_dirty {
             self.images.update(cx, |cache, cx| cache.clear(window, cx));
             self.image_cache_dirty = false;
@@ -1519,125 +1494,30 @@ impl Render for MusicApp {
         let colors = self.colors();
         let viewport = window.viewport_size();
         let compact = viewport.width < px(1100.);
-        let dense = compact || viewport.height < px(700.);
-        let queue_overlay = viewport.width < px(1280.);
-        let state = self.player.state();
-        let query = self.search.read(cx).value();
-        if self.collection_dirty
-            || self.collection_query != query
-            || self.scroll_context != self.selected_playlist
-        {
-            let tracks = self.filtered_tracks(cx);
-            let ids: Vec<_> = tracks.iter().map(|track| track.id).collect();
-            if self.scroll_context != self.selected_playlist
-                || self.collection_query != query
-                || self.collection_items != ids
-            {
-                self.collection_list.reset(tracks.len() + 1);
-            }
-            self.scroll_context = self.selected_playlist;
-            self.collection_query = query;
-            self.collection_items = ids;
-            self.collection_tracks = Rc::new(tracks);
-            self.collection_dirty = false;
-        }
-        let tracks = self.collection_tracks.clone();
-        let empty = tracks.is_empty();
-        let content = list(
-            self.collection_list.clone(),
-            cx.processor(move |app, index: usize, _, cx| {
-                if index == 0 {
-                    app.collection_intro(viewport, empty, &state, cx)
-                } else {
-                    app.track_row(tracks[index - 1].clone(), index - 1, &state, cx)
+        self.configure_progress(window, cx);
+        self.cursor_companion.update(cx, |view, cx| {
+            view.configure(
+                self.preferences.cursor_pet,
+                self.preferences.cursor_pet_speed,
+                window,
+                cx,
+            )
+        });
+        self.configure_pet_picker(window, cx);
+        if self.library_body.is_none() {
+            let parent = cx.weak_entity();
+            let body = cx.new(|_| LibraryBody { parent });
+            cx.observe(&cx.entity(), {
+                let weak = body.downgrade();
+                move |_, _, cx| {
+                    let _ = weak.update(cx, |_, cx| cx.notify());
                 }
-            }),
-        )
-        .size_full()
-        .max_w(px(1120.))
-        .min_h_0();
-        let mut body = div()
-            .relative()
-            .flex()
-            .flex_1()
-            .min_h_0()
-            .child(self.sidebar(compact || viewport.height < px(700.), cx))
-            .child(
-                div()
-                    .relative()
-                    .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .flex()
-                    .justify_center()
-                    .px(px(if dense { 16. } else { 32. }))
-                    .child(
-                        if self.library_loading && self.playlists.is_empty() && !self.settings_open
-                        {
-                            div()
-                                .size_full()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_color(rgb(colors.muted))
-                                .child(localized_format!(
-                                    "Загружаем библиотеку…",
-                                    "Loading library…"
-                                ))
-                                .into_any_element()
-                        } else if self.settings_open {
-                            self.settings_view(cx)
-                        } else if self.home_open {
-                            self.home_view(viewport, cx)
-                        } else {
-                            content.into_any_element()
-                        },
-                    )
-                    .children(
-                        (!self.home_open && !self.settings_open && {
-                            let top = self.collection_list.logical_scroll_top();
-                            top.item_ix > 0 || top.offset_in_item > px(180.)
-                        })
-                        .then(|| {
-                            div()
-                                .id("back-to-top")
-                                .absolute()
-                                .right_5()
-                                .bottom_5()
-                                .size_11()
-                                .rounded_full()
-                                .occlude()
-                                .bg(rgb(colors.accent))
-                                .text_color(rgb(colors.bg))
-                                .shadow_lg()
-                                .cursor_pointer()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_xl()
-                                .child("↑")
-                                .on_click(cx.listener(|app, _, _, cx| {
-                                    cx.stop_propagation();
-                                    app.collection_list.scroll_to(ListOffset::default());
-                                    cx.notify();
-                                }))
-                        }),
-                    ),
-            );
-        if self.preferences.queue_visible {
-            if queue_overlay {
-                body = body.child(
-                    div()
-                        .id("queue-backdrop")
-                        .absolute()
-                        .inset_0()
-                        .occlude()
-                        .bg(rgba(0x05090688))
-                        .on_click(cx.listener(|app, _, _, cx| app.toggle_queue(cx))),
-                );
-            }
-            body = body.child(self.queue_panel(queue_overlay, cx));
+            })
+            .detach();
+            self.library_body = Some(body);
         }
+        let body = AnyView::from(self.library_body.as_ref().unwrap().clone())
+            .cached(div().flex_1().min_h_0().w_full().style().clone());
         div()
             .relative()
             .size_full()
@@ -1647,6 +1527,9 @@ impl Render for MusicApp {
             .text_size(px(14.))
             .track_focus(&self.focus)
             .key_context("MusicApp")
+            .on_action(cx.listener(|app, _: &FullscreenTrack, window, cx| {
+                app.toggle_now_playing(window, cx)
+            }))
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::submit))
             .on_action(cx.listener(|app, _: &TogglePlayback, _, cx| app.toggle_playback(cx)))
@@ -1667,18 +1550,30 @@ impl Render for MusicApp {
                 app.set_volume(app.preferences.volume - 0.01, cx);
                 app.save_preferences();
             }))
-            .on_mouse_move(cx.listener(|app, event: &MouseMoveEvent, _, cx| {
+            .on_mouse_move(cx.listener(|app, event: &MouseMoveEvent, window, cx| {
+                app.cursor_companion
+                    .update(cx, |view, cx| view.follow(event.position, window, cx));
                 if let Some(kind) = app.dragging_slider {
                     app.change_slider(kind, event.position, cx);
+                }
+                if app.progress.read(cx).is_dragging() {
+                    app.progress
+                        .update(cx, |view, cx| view.drag(event.position, cx));
                 }
             }))
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|app, _, _, cx| app.finish_slider(cx)),
+                cx.listener(|app, _, _, cx| {
+                    app.progress.update(cx, |view, cx| view.finish(cx));
+                    app.finish_slider(cx);
+                }),
             )
             .on_mouse_up_out(
                 MouseButton::Left,
-                cx.listener(|app, _, _, cx| app.finish_slider(cx)),
+                cx.listener(|app, _, _, cx| {
+                    app.progress.update(cx, |view, cx| view.finish(cx));
+                    app.finish_slider(cx);
+                }),
             )
             .flex()
             .flex_col()
@@ -1687,17 +1582,23 @@ impl Render for MusicApp {
                     .absolute()
                     .inset_0()
                     .overflow_hidden()
-                    .child(
-                        img(self.data_directory.join(&background.display_path))
-                            .image_cache(&self.images)
-                            .size_full()
-                            .object_fit(ObjectFit::Cover),
-                    )
+                    .child(self.background_visual(background))
                     .child(div().absolute().inset_0().bg(rgba((colors.bg << 8) | 0x94)))
             }))
-            .child(body)
-            .child(self.footer(compact, cx))
+            .child(if self.now_playing_open {
+                self.now_playing_view(viewport, cx)
+            } else {
+                div()
+                    .size_full()
+                    .min_h_0()
+                    .flex()
+                    .flex_col()
+                    .child(body)
+                    .child(self.footer(compact, cx))
+                    .into_any_element()
+            })
             .children(self.modal_view(viewport, cx))
+            .child(self.cursor_companion.clone())
     }
 }
 
@@ -1853,5 +1754,147 @@ impl MusicApp {
                         track.artist.clone()
                     }),
             )
+    }
+}
+
+impl MusicApp {
+    fn render_library_body(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        {
+            self.library_renders += 1;
+        }
+        let colors = self.colors();
+        let viewport = window.viewport_size();
+        let compact = viewport.width < px(1100.);
+        let dense = compact || viewport.height < px(700.);
+        let queue_overlay = viewport.width < px(1280.);
+        let state = self.player.state();
+        let query = self.search.read(cx).value();
+        if self.collection_dirty
+            || self.collection_query != query
+            || self.scroll_context != self.selected_playlist
+        {
+            let tracks = self.filtered_tracks(cx);
+            let ids: Vec<_> = tracks.iter().map(|track| track.id).collect();
+            if self.scroll_context != self.selected_playlist
+                || self.collection_query != query
+                || self.collection_items != ids
+            {
+                self.collection_list.reset(tracks.len() + 1);
+            }
+            self.scroll_context = self.selected_playlist;
+            self.collection_query = query;
+            self.collection_items = ids;
+            self.collection_tracks = Rc::new(tracks);
+            self.collection_dirty = false;
+        }
+        let tracks = self.collection_tracks.clone();
+        let empty = tracks.is_empty();
+        let content = list(
+            self.collection_list.clone(),
+            cx.processor(move |app, index: usize, _, cx| {
+                if index == 0 {
+                    app.collection_intro(viewport, empty, &state, cx)
+                } else {
+                    app.track_row(tracks[index - 1].clone(), index - 1, &state, cx)
+                }
+            }),
+        )
+        .size_full()
+        .max_w(px(1120.))
+        .min_h_0();
+        let mut body = div()
+            .relative()
+            .size_full()
+            .flex()
+            .min_h_0()
+            .child(self.sidebar(compact || viewport.height < px(700.), cx))
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .flex()
+                    .justify_center()
+                    .px(px(if dense { 16. } else { 32. }))
+                    .child(
+                        if self.library_loading && self.playlists.is_empty() && !self.settings_open
+                        {
+                            div()
+                                .size_full()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_color(rgb(colors.muted))
+                                .child(localized_format!(
+                                    "Загружаем библиотеку…",
+                                    "Loading library…"
+                                ))
+                                .into_any_element()
+                        } else if self.settings_open {
+                            self.settings_view(cx)
+                        } else if self.home_open {
+                            self.home_view(viewport, cx)
+                        } else {
+                            content.into_any_element()
+                        },
+                    )
+                    .children(
+                        (!self.home_open && !self.settings_open && {
+                            let top = self.collection_list.logical_scroll_top();
+                            top.item_ix > 0 || top.offset_in_item > px(180.)
+                        })
+                        .then(|| {
+                            div()
+                                .id("back-to-top")
+                                .absolute()
+                                .right_5()
+                                .bottom_5()
+                                .size_11()
+                                .rounded_full()
+                                .occlude()
+                                .bg(rgb(colors.accent))
+                                .text_color(rgb(colors.bg))
+                                .shadow_lg()
+                                .cursor_pointer()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_xl()
+                                .child("↑")
+                                .on_click(cx.listener(|app, _, _, cx| {
+                                    cx.stop_propagation();
+                                    app.collection_list.scroll_to(ListOffset::default());
+                                    cx.notify();
+                                }))
+                        }),
+                    ),
+            );
+        if self.preferences.queue_visible {
+            if queue_overlay {
+                body = body.child(
+                    div()
+                        .id("queue-backdrop")
+                        .absolute()
+                        .inset_0()
+                        .occlude()
+                        .bg(rgba(0x05090688))
+                        .on_click(cx.listener(|app, _, _, cx| app.toggle_queue(cx))),
+                );
+            }
+            body = body.child(self.queue_panel(queue_overlay, cx));
+        }
+        body.into_any_element()
+    }
+}
+
+pub(super) struct LibraryBody {
+    parent: WeakEntity<MusicApp>,
+}
+impl Render for LibraryBody {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.parent
+            .update(cx, |app, cx| app.render_library_body(window, cx))
+            .unwrap_or_else(|_| div().into_any_element())
     }
 }
