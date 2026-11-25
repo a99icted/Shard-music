@@ -1,3 +1,4 @@
+pub mod app_identity;
 pub mod appearance;
 pub mod artwork;
 #[cfg(feature = "desktop")]
@@ -27,6 +28,7 @@ pub mod statistics;
 pub mod storage;
 pub mod sync;
 pub mod theme;
+pub mod updates;
 pub mod volume;
 pub mod yandex;
 pub mod youtube;

@@ -8,7 +8,8 @@ use std::{
 };
 
 pub fn config_directory() -> Result<PathBuf> {
-    directories::ProjectDirs::from("", "Shard", "Shard")
+    let name = crate::app_identity::STORAGE_NAME;
+    directories::ProjectDirs::from("", name, name)
         .map(|dirs| dirs.data_local_dir().to_path_buf())
         .context("Could not locate SHARD settings")
 }

@@ -12,6 +12,28 @@ use gpui::{App, AppContext, Application, Bounds, WindowBounds, WindowOptions, px
 use shard::{db::Database, services::application_directory};
 
 fn main() {
+    #[cfg(feature = "test-build")]
+    if std::env::args().nth(1).as_deref() == Some("--diagnose-profile") {
+        let result = (|| -> anyhow::Result<()> {
+            let data = application_directory()?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "app": shard::app_identity::NAME,
+                    "version": shard::app_identity::VERSION,
+                    "config_directory": shard::storage::config_directory()?,
+                    "data_directory": data,
+                    "database_exists": data.join("library.sqlite3").exists(),
+                })
+            );
+            Ok(())
+        })();
+        if let Err(error) = result {
+            eprintln!("{error:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
     // A replacement process waits until the old instance releases files and its mutex.
     #[cfg(windows)]
     if std::env::args().nth(1).as_deref() == Some("--restart-after") {
@@ -76,7 +98,11 @@ fn main() {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
                     window_min_size: Some(size(px(760.), px(520.))),
                     titlebar: Some(gpui::TitlebarOptions {
-                        title: Some("SHARD".into()),
+                        title: Some(if shard::app_identity::IS_TEST {
+                            format!("Shard {}", shard::app_identity::VERSION).into()
+                        } else {
+                            "SHARD".into()
+                        }),
                         ..Default::default()
                     }),
                     ..Default::default()

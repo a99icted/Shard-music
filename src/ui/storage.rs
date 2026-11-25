@@ -1,7 +1,7 @@
 use super::*;
 
 impl MusicApp {
-    fn storage_is_busy(&self) -> bool {
+    pub(super) fn storage_is_busy(&self) -> bool {
         self.library_loading
             || self.thumbnail_cancel.is_some()
             || self.storage_clearing
@@ -72,14 +72,26 @@ impl MusicApp {
     }
 
     pub(super) fn choose_storage(&mut self, cx: &mut Context<Self>) {
-        if std::env::var_os("SHARD_DATA_DIR")
-            .or_else(|| std::env::var_os("LOZEX_DATA_DIR"))
-            .is_some()
-        {
+        if self.updates.downloading {
             self.error = Some(localized_format!(
-                "Путь задан переменной окружения SHARD_DATA_DIR / LOZEX_DATA_DIR. Измените её, чтобы выбрать другое хранилище.",
-                "The path is set by SHARD_DATA_DIR / LOZEX_DATA_DIR. Change the environment variable to use another storage location."
+                "Дождитесь завершения обновления приложения.",
+                "Wait for the application update to finish."
             ));
+            cx.notify();
+            return;
+        }
+        if shard::app_identity::data_directory_override().is_some() {
+            self.error = Some(if shard::app_identity::IS_TEST {
+                localized_format!(
+                    "Путь задан переменной окружения SHARD_TEST_DATA_DIR. Измените её, чтобы выбрать другое хранилище.",
+                    "The path is set by SHARD_TEST_DATA_DIR. Change it to use another storage location."
+                )
+            } else {
+                localized_format!(
+                    "Путь задан переменной окружения SHARD_DATA_DIR / LOZEX_DATA_DIR. Измените её, чтобы выбрать другое хранилище.",
+                    "The path is set by SHARD_DATA_DIR / LOZEX_DATA_DIR. Change the environment variable to use another storage location."
+                )
+            });
             cx.notify();
             return;
         }
@@ -106,7 +118,11 @@ impl MusicApp {
             let result = task.await;
             let _ = this.update(cx, |app, cx| {
                 match result {
-                    Ok(Some(parent)) => app.modal = Some(Modal::MoveStorage(parent.join("SHARD"))),
+                    Ok(Some(parent)) => {
+                        app.modal = Some(Modal::MoveStorage(
+                            parent.join(shard::app_identity::STORAGE_NAME),
+                        ))
+                    }
                     Ok(None) => {}
                     Err(error) => app.error = Some(format!("{error:#}")),
                 }

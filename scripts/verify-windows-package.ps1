@@ -6,7 +6,9 @@ if (-not $Version) {
     $Version = [Regex]::Match($versionLine, '"([^"]+)"').Groups[1].Value
 }
 $releaseVersion = $Version
-if ($releaseVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid package version' }
+if ($releaseVersion -notmatch '^\d+\.\d+\.\d+(-test)?$') { throw 'Invalid package version' }
+$isTestBuild = $releaseVersion.EndsWith('-test')
+$numericVersion = $releaseVersion -replace '-test$', ''
 $distRoot = Join-Path $projectRoot 'dist'
 $installerPath = Join-Path $distRoot "Shard-$releaseVersion-Setup-x64.exe"
 $manifestPath = Join-Path $distRoot "Shard-$releaseVersion-manifest.json"
@@ -32,10 +34,12 @@ foreach ($required in @('shard.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'tools
 }
 if (@($paths | Where-Object { $_ -match '(?i)(^|/)(audio|artwork|backgrounds|sync-cache|staging|target|\.git)/|\.(sqlite|sqlite3)(-|$)|(^|/)(settings|preferences)\.json$' }).Count) { throw 'Personal or development data in package' }
 $payloadExecutable = Join-Path $stageRoot 'shard.exe'
-$releaseExecutable = Join-Path $projectRoot 'target/release/shard.exe'
+$buildDirectory = if ($isTestBuild) { 'target/test-build' } else { 'target' }
+$releaseExecutable = Join-Path $projectRoot "$buildDirectory/release/shard.exe"
 if ((Get-FileHash -LiteralPath $payloadExecutable).Hash -ne (Get-FileHash -LiteralPath $releaseExecutable).Hash) { throw 'Packaged executable differs from release build' }
 $executableInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($payloadExecutable)
-if ("$($executableInfo.FileMajorPart).$($executableInfo.FileMinorPart).$($executableInfo.FileBuildPart)" -ne $releaseVersion) { throw 'Executable version mismatch' }
+if ("$($executableInfo.FileMajorPart).$($executableInfo.FileMinorPart).$($executableInfo.FileBuildPart)" -ne $numericVersion) { throw 'Executable version mismatch' }
+if ($isTestBuild -and ($executableInfo.ProductName -ne 'Shard test' -or $executableInfo.ProductVersion -ne $releaseVersion -or $manifest.app -ne 'Shard test')) { throw 'Test edition identity mismatch' }
 $installerInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($installerPath)
 if ($installerInfo.ProductVersion.Trim([char[]]@(0, 32)) -ne $releaseVersion) { throw "Installer version mismatch: $($installerInfo.ProductVersion.Trim([char[]]@(0, 32)))" }
 $binary = [IO.File]::ReadAllBytes($payloadExecutable)

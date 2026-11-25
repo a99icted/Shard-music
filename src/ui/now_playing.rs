@@ -55,7 +55,7 @@ impl MusicApp {
                             .items_center()
                             .gap_3()
                             .child(self.brand_mark(28.))
-                            .child("SHARD"),
+                            .child(shard::app_identity::HEADER),
                     )
                     .child(self.icon_button("close-now-playing", "×", false).on_click(
                         cx.listener(|app, _, window, cx| app.toggle_now_playing(window, cx)),

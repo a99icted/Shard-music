@@ -5287,7 +5287,7 @@ dependencies = [
 
 [[package]]
 name = "shard"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
@@ -5315,6 +5315,7 @@ dependencies = [
  "uuid",
  "windows 0.61.3",
  "windows-sys 0.61.2",
+ "winreg",
 ]
 
 [[package]]
@@ -6444,6 +6445,7 @@ dependencies = [
  "ureq-proto",
  "utf8-zero",
  "webpki-roots",
+ "winreg",
 ]
 
 [[package]]

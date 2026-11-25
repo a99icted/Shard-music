@@ -366,7 +366,7 @@ impl MusicApp {
                             .text_2xl()
                             .font_weight(FontWeight::BOLD)
                             .text_size(px(if compact { 23. } else { 27. }))
-                            .child("SHARD"),
+                            .child(shard::app_identity::HEADER),
                     )
             }))
             .children(mini_download.then(|| {
@@ -547,6 +547,11 @@ impl MusicApp {
                         cx.notify();
                     })),
             )
+            .children(if compact {
+                None
+            } else {
+                self.update_notice(cx)
+            })
             .into_any_element()
     }
 }

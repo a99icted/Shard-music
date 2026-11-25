@@ -17,8 +17,15 @@ use windows_sys::{
 };
 
 const ACTIVATE: u32 = WM_APP + 83;
+#[cfg(not(feature = "test-build"))]
 const MUTEX: windows_sys::core::PCWSTR = w!("Local\\Shard-5CBCE71D-68EF-4E41-9565-401586E1F370");
+#[cfg(not(feature = "test-build"))]
 const CLASS: windows_sys::core::PCWSTR = w!("ShardSingleInstance-5CBCE71D");
+#[cfg(feature = "test-build")]
+const MUTEX: windows_sys::core::PCWSTR =
+    w!("Local\\Shard-test-9FCE8209-88EF-4E16-A917-5FB7D60F703A");
+#[cfg(feature = "test-build")]
+const CLASS: windows_sys::core::PCWSTR = w!("ShardTestSingleInstance-9FCE8209");
 
 struct State {
     main: Cell<HWND>,

@@ -1,0 +1,11 @@
+{
+  "props": {
+    "pageProps": {
+      "status": 404,
+      "title": "Page not found",
+      "description": "We can\u2019t seem to find the page you are looking for.",
+      "locale": "en"
+    }
+  },
+  "page": "/playlist/[id]"
+}

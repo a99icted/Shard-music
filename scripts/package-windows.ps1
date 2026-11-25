@@ -1,5 +1,6 @@
 param(
     [switch]$SkipBuild,
+    [switch]$TestBuild,
     [string]$Compiler,
     [string]$RuntimeDirectory
 )
@@ -43,19 +44,30 @@ if (-not (Test-Path -LiteralPath $Compiler)) { throw 'Inno Setup compiler was no
 
 Push-Location $projectRoot
 try {
+    $buildDirectory = if ($TestBuild) { 'target/test-build' } else { 'target' }
     if (-not $SkipBuild) {
         $previousIncremental = $env:CARGO_INCREMENTAL
         try {
             $env:CARGO_INCREMENTAL = '0'
-            cargo build --release --locked
+            $buildArguments = @('build', '--release', '--locked', '--target-dir', $buildDirectory)
+            if ($TestBuild) { $buildArguments += @('--features', 'test-build') }
+            cargo @buildArguments
             if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
         } finally { $env:CARGO_INCREMENTAL = $previousIncremental }
     }
-    $executable = Join-Path $projectRoot 'target/release/shard.exe'
-    if (-not (Test-Path -LiteralPath $executable)) { throw 'target/release/shard.exe is missing' }
+    $executable = Join-Path $projectRoot "$buildDirectory/release/shard.exe"
+    if (-not (Test-Path -LiteralPath $executable)) { throw "Missing release executable: $executable" }
     $versionLine = Get-Content Cargo.toml | Where-Object { $_ -match '^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"' } | Select-Object -First 1
     $version = [Regex]::Match($versionLine, '"([^"]+)"').Groups[1].Value
     if (-not $version) { throw 'Package version was not found' }
+    $numericVersion = $version
+    if ($TestBuild) {
+        $version += '-test'
+        $binaryInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($executable)
+        if ($binaryInfo.ProductName -ne 'Shard test' -or $binaryInfo.ProductVersion -ne $version) {
+            throw 'The executable is not the requested isolated test build'
+        }
+    }
 
     & (Join-Path $PSScriptRoot 'setup-youtube.ps1')
     $nodeVersion = 'v24.22.3'
@@ -68,6 +80,9 @@ try {
     $licenses = Join-Path $stage 'licenses'
     New-Item -ItemType Directory -Path $stageTools, $licenses -Force | Out-Null
     Copy-Item -LiteralPath $executable -Destination $stage
+    if ($TestBuild) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'diagnose-spotify.ps1') -Destination $stage
+    }
     Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE'), (Join-Path $projectRoot 'THIRD_PARTY_NOTICES.md') -Destination $stage
     Copy-Item -LiteralPath (Join-Path $projectRoot 'vendor/gpui/LICENSE-APACHE') -Destination (Join-Path $licenses 'GPUI-APACHE-2.0.txt')
     $metadataText = cargo metadata --locked --offline --format-version 1 --filter-platform x86_64-pc-windows-msvc
@@ -136,7 +151,9 @@ https://visualstudio.microsoft.com/license-terms/
     & (Join-Path $stageTools 'ffmpeg.exe') -version | Set-Content -LiteralPath (Join-Path $licenses 'FFmpeg-build.txt') -Encoding utf8
     if ($LASTEXITCODE -ne 0) { throw 'Unable to record FFmpeg build information' }
     $manifest = [ordered]@{
-        app = 'Shard'; version = $version; architecture = 'x86_64'; node = "$nodeOutput"
+        app = $(if ($TestBuild) { 'Shard test' } else { 'Shard' }); version = $version; architecture = 'x86_64'; node = "$nodeOutput"
+        edition = $(if ($TestBuild) { 'test' } else { 'release' })
+        build_directory = $buildDirectory
         yt_dlp = "$ytVersion"; ffmpeg = "$ffVersion"
         node_source = "https://nodejs.org/dist/$nodeVersion/"
         downloader_source = 'https://github.com/yt-dlp/yt-dlp'
@@ -146,7 +163,9 @@ https://visualstudio.microsoft.com/license-terms/
         })
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage 'package-manifest.json') -Encoding utf8
-    & $Compiler /Qp ("/DAppVersion=$version") ("/DPackageDir=$stage") ("/DOutputPath=$dist") (Join-Path $projectRoot 'installer/shard.iss')
+    $compilerArguments = @('/Qp', "/DAppVersion=$version", "/DAppNumericVersion=$numericVersion", "/DPackageDir=$stage", "/DOutputPath=$dist")
+    if ($TestBuild) { $compilerArguments += '/DTestBuild' }
+    & $Compiler @compilerArguments (Join-Path $projectRoot 'installer/shard.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
     $installer = Join-Path $dist "Shard-$version-Setup-x64.exe"
     $digest = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()

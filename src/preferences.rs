@@ -71,6 +71,7 @@ impl PreferencesWriter {
 #[serde(default)]
 pub struct Preferences {
     pub sidebar_collapsed: bool,
+    pub update_notifications: bool,
     pub sync_warn_duplicates: bool,
     pub sync_ignore_duplicates: bool,
     pub sync_enabled: bool,
@@ -101,6 +102,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             sidebar_collapsed: false,
+            update_notifications: true,
             sync_warn_duplicates: true,
             sync_ignore_duplicates: false,
             sync_enabled: false,
@@ -176,10 +178,12 @@ mod tests {
     fn preferences_survive_restart_and_handle_invalid_files() {
         let root = tempfile::tempdir().unwrap();
         let defaults = Preferences::load(root.path());
+        assert!(defaults.update_notifications);
         assert!(!defaults.sidebar_collapsed);
         assert!(defaults.sync_warn_duplicates);
         assert!(!defaults.sync_ignore_duplicates);
         let preferences = Preferences {
+            update_notifications: false,
             language: crate::i18n::Language::English,
             sidebar_collapsed: true,
             volume: 0.32,
@@ -205,6 +209,7 @@ mod tests {
         preferences.save(root.path()).unwrap();
         preferences.save(root.path()).unwrap();
         let reopened = Preferences::load(root.path());
+        assert!(!reopened.update_notifications);
         assert!(reopened.sidebar_collapsed);
         assert_eq!(reopened.volume, 0.32);
         assert_eq!(reopened.audio_output.as_deref(), Some("Headphones"));
@@ -250,6 +255,7 @@ mod tests {
         assert_eq!(Preferences::load(root.path()).volume, 0.7);
         fs::write(root.path().join("settings.json"), r#"{"volume":4}"#).unwrap();
         let upgraded = Preferences::load(root.path());
+        assert!(upgraded.update_notifications);
         assert!(!upgraded.sidebar_collapsed);
         assert!(upgraded.audio_output.is_none());
         assert!(upgraded.audio_monitoring);

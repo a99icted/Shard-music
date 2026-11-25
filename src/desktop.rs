@@ -162,7 +162,7 @@ impl Tray {
                 hIcon: icon,
                 ..Default::default()
             };
-            let tip: Vec<_> = "Shard".encode_utf16().collect();
+            let tip: Vec<_> = shard::app_identity::NAME.encode_utf16().collect();
             data.szTip[..tip.len()].copy_from_slice(&tip);
             let state = Box::into_raw(Box::new(State {
                 events,

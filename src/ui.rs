@@ -30,6 +30,8 @@ mod sidebar;
 mod storage;
 #[path = "ui/synchronization.rs"]
 mod synchronization;
+#[path = "ui/updates.rs"]
+mod updates;
 
 use crate::{
     input::TextInput,
@@ -90,6 +92,7 @@ pub fn bind_keys(cx: &mut App) {
 
 #[derive(Clone)]
 enum Modal {
+    ConfirmUpdate,
     SyncHelp,
     SyncOptions(shard::sync::SyncSelection),
     SyncOptionsHelp(shard::sync::SyncSelection),
@@ -142,6 +145,7 @@ pub struct MusicApp {
     sync_duplicate_requests: Option<mpsc::Receiver<synchronization::DuplicateRequest>>,
     sync_duplicate_prompt: Option<synchronization::DuplicatePrompt>,
     settings_open: bool,
+    updates: updates::UpdateUi,
     storage_moving: bool,
     storage_clearing: bool,
     storage_ready: bool,
@@ -302,6 +306,7 @@ impl MusicApp {
             sync_duplicate_requests: None,
             sync_duplicate_prompt: None,
             settings_open: false,
+            updates: Default::default(),
             storage_moving: false,
             storage_clearing: false,
             storage_ready: false,
@@ -383,7 +388,9 @@ impl MusicApp {
             app.start_sync(cx);
         }
         app.refresh(cx);
+        app.schedule_update_checks(cx);
         cx.on_release(|app, cx| {
+            app.updates.cancel.store(true, Ordering::Relaxed);
             drop(app.background_animation.suspend(cx));
             if let Some(cancel) = &app.thumbnail_cancel {
                 cancel.store(true, Ordering::Relaxed);
@@ -399,6 +406,7 @@ impl MusicApp {
         })
         .detach();
         cx.on_app_quit(|app, cx| {
+            app.updates.cancel.store(true, Ordering::Relaxed);
             drop(app.background_animation.suspend(cx));
             if let Some(cancel) = &app.thumbnail_cancel {
                 cancel.store(true, Ordering::Relaxed);
@@ -444,6 +452,7 @@ impl MusicApp {
                         let progress = app.player.progress();
                         let snapshot = (progress.0, progress.1);
                         let mut changed = last_player != Some(snapshot);
+                        changed |= app.poll_update_progress();
                         if let Some(request) = app
                             .sync_duplicate_requests
                             .as_ref()
@@ -1267,6 +1276,19 @@ impl MusicApp {
         let colors = self.colors();
         let modal = self.modal.clone()?;
         let (eyebrow, title, description) = match &modal {
+            Modal::ConfirmUpdate => (
+                "SHARD",
+                tr("Обновить приложение?"),
+                localized_format!(
+                    "Будет скачана и установлена версия {}. Shard закроется и откроется снова после обновления. Музыка, плейлисты и настройки сохранятся.",
+                    "Version {} will be downloaded and installed. Shard will close and reopen after the update. Your music, playlists and settings will be kept.",
+                    self.updates
+                        .available
+                        .as_ref()
+                        .map(|u| u.version.as_str())
+                        .unwrap_or("")
+                ),
+            ),
             Modal::DeleteIgnoredTracks(tracks) => (
                 tr("УДАЛЕНИЕ ИЗ ХРАНИЛИЩА"),
                 tr("Удалить все игнорируемые треки?"),
@@ -1475,6 +1497,23 @@ impl MusicApp {
                     .child(description),
             );
         match modal {
+            Modal::ConfirmUpdate => {
+                card = card
+                    .child(
+                        self.button(
+                            "confirm-application-update",
+                            &localized_format!("Да, обновить", "Yes, update"),
+                            true,
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| app.download_application_update(cx))),
+                    )
+                    .child(
+                        self.button("cancel-application-update", tr("Отмена"), false)
+                            .on_click(
+                                cx.listener(|app, _, window, cx| app.dismiss(&Dismiss, window, cx)),
+                            ),
+                    );
+            }
             Modal::DeleteIgnoredTracks(tracks) => {
                 card = card
                     .child(

@@ -20,6 +20,7 @@ pub fn tr(text: &str) -> &str {
         return text;
     }
     match text {
+        "Обновить приложение?" => "Update the application?",
         "Сканируйте QR в Shard на телефоне. Подключение работает через роутер или точку доступа телефона/ПК. После смены сети включите синхронизацию заново и отсканируйте новый QR." => {
             "Scan the QR in Shard on your phone. Connect through a router or a phone/PC hotspot. After changing networks, restart sync and scan the new QR."
         }
@@ -370,6 +371,12 @@ pub fn tr(text: &str) -> &str {
         }
         "Spotify не предоставил открытый список треков" => {
             "Spotify did not provide a public track list"
+        }
+        "Spotify ограничил доступ к открытым метаданным" => {
+            "Spotify restricted access to public metadata"
+        }
+        "Временная ошибка Spotify при получении метаданных" => {
+            "Temporary Spotify error while retrieving metadata"
         }
         "Некорректный ответ Spotify" => "Invalid Spotify response",
         "Некорректные метаданные Spotify" => "Invalid Spotify metadata",

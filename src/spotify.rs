@@ -49,18 +49,45 @@ pub(crate) fn fetch(url: &url::Url, cancel: &AtomicBool) -> Result<Collection> {
         .build()
         .new_agent();
     let endpoint = format!("https://open.spotify.com/embed{}", url.path());
-    let html = agent
-        .get(&endpoint)
-        .header("User-Agent", "Mozilla/5.0")
-        .call()
-        .context(tr("Не удалось получить открытые метаданные Spotify"))?
-        .body_mut()
-        .with_config()
-        .limit(16 * 1024 * 1024)
-        .read_to_string()
-        .context(tr("Не удалось прочитать ответ Spotify"))?;
+    let html = fetch_embed_html(&agent, &endpoint, cancel)?;
     ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
     parse_embed(&html, url)
+}
+
+fn fetch_embed_html(agent: &ureq::Agent, endpoint: &str, cancel: &AtomicBool) -> Result<String> {
+    // A gateway can fail transiently even for a public playlist. Retry only
+    // temporary HTTP failures, keeping private/missing collections terminal.
+    for attempt in 0..3 {
+        ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+        let response = agent
+            .get(endpoint)
+            .header("User-Agent", "Mozilla/5.0")
+            .call();
+        let mut response = match response {
+            Err(ureq::Error::StatusCode(status @ (502 | 503 | 504))) => {
+                if attempt == 2 {
+                    anyhow::bail!(
+                        "{} (HTTP {status}; 3 attempts)",
+                        tr("Временная ошибка Spotify при получении метаданных")
+                    );
+                }
+                // Short intervals let Stop interrupt the retry delay.
+                for _ in 0..(5 * (attempt + 1)) {
+                    ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+                continue;
+            }
+            response => response.context(tr("Не удалось получить открытые метаданные Spotify"))?,
+        };
+        return response
+            .body_mut()
+            .with_config()
+            .limit(16 * 1024 * 1024)
+            .read_to_string()
+            .context(tr("Не удалось прочитать ответ Spotify"));
+    }
+    unreachable!("the last attempt returns a response or an error")
 }
 
 fn text<'a>(value: &'a Value, field: &str) -> &'a str {
@@ -82,9 +109,12 @@ fn spotify_artwork(value: &Value) -> Option<String> {
 }
 
 pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
-    let marker = html
-        .find("id=\"__NEXT_DATA__\"")
-        .context(tr("Spotify не предоставил открытый список треков"))?;
+    let marker = html.find("id=\"__NEXT_DATA__\"").with_context(|| {
+        format!(
+            "{} (Spotify embed: missing __NEXT_DATA__)",
+            tr("Spotify не предоставил открытый список треков")
+        )
+    })?;
     let script = &html[marker..];
     let start = script.find('>').context(tr("Некорректный ответ Spotify"))? + 1;
     let end = script[start..]
@@ -93,9 +123,32 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
         + start;
     let data: Value =
         serde_json::from_str(&script[start..end]).context(tr("Некорректные метаданные Spotify"))?;
+    // Spotify's embed error pages can have HTTP 200 and report the actual
+    // failure in pageProps.status instead of providing state.data.entity.
+    if let Some(status) = data
+        .pointer("/props/pageProps/status")
+        .and_then(Value::as_u64)
+    {
+        let message = match status {
+            401 | 403 | 429 => tr("Spotify ограничил доступ к открытым метаданным"),
+            404 => tr("Коллекция Spotify закрыта или недоступна"),
+            500..=599 => tr("Временная ошибка Spotify при получении метаданных"),
+            _ => tr("Spotify не предоставил открытый список треков"),
+        };
+        ensure!(
+            status < 400,
+            "{message} (Spotify embed: page status={status})"
+        );
+    }
     let entity = data
         .pointer("/props/pageProps/state/data/entity")
-        .context(tr("Spotify не предоставил открытый список треков"))?;
+        .filter(|entity| entity.is_object())
+        .with_context(|| {
+            format!(
+                "{} (Spotify embed: missing state.data.entity)",
+                tr("Spotify не предоставил открытый список треков")
+            )
+        })?;
     let is_collection = !url.path().starts_with("/track/");
     ensure!(
         text(entity, "uri")
@@ -158,6 +211,170 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        sync::Arc,
+    };
+
+    fn serve_responses(
+        statuses: Vec<u16>,
+        cancel_after_response: Option<Arc<AtomicBool>>,
+    ) -> (String, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let endpoint = format!(
+            "http://{}/embed/playlist/test",
+            listener.local_addr().unwrap()
+        );
+        let server = std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            for status in statuses {
+                let mut stream = loop {
+                    match listener.accept() {
+                        Ok((stream, _)) => break stream,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(std::time::Instant::now() < deadline, "missing test request");
+                            std::thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(error) => panic!("{error}"),
+                    }
+                };
+                stream.set_nonblocking(false).unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0];
+                    stream.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                write!(
+                    stream,
+                    "HTTP/1.1 {status} Test\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+                )
+                .unwrap();
+                if let Some(cancel) = &cancel_after_response {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+            }
+        });
+        (endpoint, server)
+    }
+
+    #[test]
+    fn retries_temporary_http_failures_but_limits_attempts() {
+        let agent = ureq::Agent::config_builder()
+            .proxy(None)
+            .timeout_global(Some(Duration::from_secs(3)))
+            .build()
+            .new_agent();
+        for statuses in [vec![504, 200], vec![502, 503, 200]] {
+            let (endpoint, server) = serve_responses(statuses, None);
+            let result = fetch_embed_html(&agent, &endpoint, &AtomicBool::new(false));
+            server.join().unwrap();
+            assert_eq!(result.unwrap(), "ok");
+        }
+        let (endpoint, server) = serve_responses(vec![504, 504, 504], None);
+        let error = fetch_embed_html(&agent, &endpoint, &AtomicBool::new(false)).unwrap_err();
+        server.join().unwrap();
+        assert!(error.to_string().contains("HTTP 504; 3 attempts"));
+
+        let (endpoint, server) = serve_responses(vec![404], None);
+        let error = fetch_embed_html(&agent, &endpoint, &AtomicBool::new(false)).unwrap_err();
+        server.join().unwrap();
+        assert!(format!("{error:#}").contains("404"));
+    }
+
+    #[test]
+    fn cancellation_stops_http_retries() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (endpoint, server) = serve_responses(vec![504], Some(cancel.clone()));
+        let agent = ureq::Agent::config_builder()
+            .proxy(None)
+            .build()
+            .new_agent();
+        let error = fetch_embed_html(&agent, &endpoint, &cancel).unwrap_err();
+        server.join().unwrap();
+        assert_eq!(error.to_string(), tr("Загрузка остановлена"));
+    }
+
+    #[test]
+    fn reports_embed_error_status_instead_of_a_missing_track_list() {
+        let url = validate_spotify_url("https://open.spotify.com/playlist/0000000000000000000000")
+            .unwrap();
+        // Sanitized real Spotify response: the HTTP request succeeds, but the
+        // JSON contains a 404 error page and no entity.
+        let unavailable = include_str!("../tests/fixtures/spotify-unavailable.json");
+        let error = parse_embed(
+            &format!("<script id=\"__NEXT_DATA__\">{unavailable}</script>"),
+            &url,
+        )
+        .err()
+        .unwrap();
+        assert!(error.to_string().contains("page status=404"));
+        assert!(
+            error
+                .to_string()
+                .contains(tr("Коллекция Spotify закрыта или недоступна"))
+        );
+
+        for (status, message) in [
+            (403, "Spotify ограничил доступ к открытым метаданным"),
+            (429, "Spotify ограничил доступ к открытым метаданным"),
+            (503, "Временная ошибка Spotify при получении метаданных"),
+        ] {
+            let data = serde_json::json!({"props":{"pageProps":{"status":status}}});
+            let error = parse_embed(
+                &format!("<script id=\"__NEXT_DATA__\">{data}</script>"),
+                &url,
+            )
+            .err()
+            .unwrap();
+            assert!(error.to_string().contains(tr(message)));
+            assert!(error.to_string().contains(&format!("page status={status}")));
+        }
+    }
+
+    #[test]
+    fn distinguishes_missing_metadata_without_exposing_response_contents() {
+        let url = validate_spotify_url("https://open.spotify.com/playlist/0000000000000000000000")
+            .unwrap();
+        for (html, reason) in [
+            (
+                "<html>untrusted response contents</html>",
+                "missing __NEXT_DATA__",
+            ),
+            (
+                "<script id=\"__NEXT_DATA__\">{\"props\":{\"pageProps\":{\"secret\":\"untrusted response contents\"}}}</script>",
+                "missing state.data.entity",
+            ),
+            (
+                "<script id=\"__NEXT_DATA__\">{\"props\":{\"pageProps\":{\"state\":{\"data\":{\"entity\":null}}}}}</script>",
+                "missing state.data.entity",
+            ),
+        ] {
+            let error = parse_embed(html, &url).err().unwrap().to_string();
+            assert!(error.contains(reason), "{error}");
+            assert!(!error.contains("untrusted response contents"));
+        }
+    }
+
+    #[test]
+    #[ignore = "requires public Spotify network access"]
+    fn fetches_reported_public_playlist() {
+        let url = validate_spotify_url("https://open.spotify.com/playlist/3g3ZXjjQgq3NGT8gI1QhqV")
+            .unwrap();
+        let collection = fetch(&url, &AtomicBool::new(false)).unwrap();
+        assert!(collection.is_collection);
+        assert!(!collection.tracks.is_empty());
+        println!(
+            "Spotify reported playlist: {} tracks",
+            collection.tracks.len()
+        );
+    }
+
     #[test]
     fn extracts_album_artwork_and_individual_track_covers() {
         let url =

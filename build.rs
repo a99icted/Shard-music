@@ -56,6 +56,21 @@ fn main() {
             env::var("CARGO_PKG_VERSION_PATCH").unwrap()
         );
         let version_info = "1 VERSIONINFO\nFILEVERSION 0,1,0,0\nPRODUCTVERSION 0,1,0,0\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"ProductName\", \"Shard\\0\"\n   VALUE \"FileDescription\", \"Shard Music Player\\0\"\n   VALUE \"OriginalFilename\", \"shard.exe\\0\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n".replace("0,1,0,0", &version);
+        let version_info = if env::var_os("CARGO_FEATURE_TEST_BUILD").is_some() {
+            version_info
+                .replace("Shard\\0", "Shard test\\0")
+                .replace("Shard Music Player\\0", "Shard Music Player test\\0")
+                .replace(
+                    "   VALUE \"OriginalFilename\"",
+                    &format!(
+                        "   VALUE \"ProductVersion\", \"{}-test\\0\"\n   VALUE \"FileVersion\", \"{}-test\\0\"\n   VALUE \"OriginalFilename\"",
+                        env::var("CARGO_PKG_VERSION").unwrap(),
+                        env::var("CARGO_PKG_VERSION").unwrap()
+                    ),
+                )
+        } else {
+            version_info
+        };
         resources.push_str(&version_info);
         fs::write(&resource, resources).unwrap();
         embed_resource::compile_for_everything(resource, embed_resource::NONE)

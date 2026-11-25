@@ -1,0 +1,82 @@
+name: Windows release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing stable version tag, for example v0.1.8'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Validate version
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Use a stable vMAJOR.MINOR.PATCH tag' }
+          $version = [regex]::Match((Get-Content Cargo.toml -Raw), '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
+          if ($env:RELEASE_TAG -ne "v$version") { throw 'Tag and Cargo.toml versions differ' }
+          "SHARD_RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Test core and update validation
+        run: cargo test --locked --no-default-features --lib -- --test-threads=1
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Verify installer and complete payload
+        shell: pwsh
+        run: ./scripts/verify-windows-package.ps1 -Version $env:SHARD_RELEASE_VERSION
+      - name: Test isolated silent update and restart
+        shell: pwsh
+        run: ./scripts/test-windows-updater.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shard-Windows-${{ env.SHARD_RELEASE_VERSION }}
+          path: |
+            dist/Shard-${{ env.SHARD_RELEASE_VERSION }}-Setup-x64.exe
+            dist/Shard-${{ env.SHARD_RELEASE_VERSION }}-Setup-x64.exe.sha256
+            dist/Shard-${{ env.SHARD_RELEASE_VERSION }}-manifest.json
+            dist/Shard-${{ env.SHARD_RELEASE_VERSION }}-verification.json
+            dist/windows-updater-smoke-verification.json
+          if-no-files-found: error
+      - name: Publish complete stable release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:RELEASE_TAG
+          $version = $env:SHARD_RELEASE_VERSION
+          $existing = gh release view $tag --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (-not ($existing | ConvertFrom-Json).isDraft) { throw 'Refusing to replace a published release' }
+          } else {
+            $notes = "docs/releases/$tag.md"
+            if (-not (Test-Path -LiteralPath $notes)) {
+              $notes = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+              "Shard $version for Windows x64. Music, playlists and settings are preserved when updating." | Set-Content -LiteralPath $notes
+            }
+            gh release create $tag --verify-tag --draft --title "Shard $version" --notes-file $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create draft release' }
+          }
+          gh release upload $tag "dist/Shard-$version-Setup-x64.exe" "dist/Shard-$version-Setup-x64.exe.sha256" "dist/Shard-$version-manifest.json" "dist/Shard-$version-verification.json" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed; release remains a draft' }
+          gh release edit $tag --draft=false --prerelease=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish complete release' }

@@ -736,9 +736,7 @@ impl PlaylistService {
 }
 
 pub fn application_directory() -> Result<PathBuf> {
-    if let Some(path) =
-        std::env::var_os("SHARD_DATA_DIR").or_else(|| std::env::var_os("LOZEX_DATA_DIR"))
-    {
+    if let Some(path) = crate::app_identity::data_directory_override() {
         return Ok(PathBuf::from(path));
     }
     let config = crate::storage::config_directory()?;
@@ -746,14 +744,13 @@ pub fn application_directory() -> Result<PathBuf> {
         return Ok(path);
     }
     // Keep using the existing library when upgrading from Lozex.
-    if let Some(legacy) = directories::ProjectDirs::from("", "Lozex", "Lozex")
+    if !crate::app_identity::IS_TEST
+        && let Some(legacy) = directories::ProjectDirs::from("", "Lozex", "Lozex")
         && legacy.data_local_dir().join("library.sqlite3").is_file()
     {
         return Ok(legacy.data_local_dir().to_path_buf());
     }
-    directories::ProjectDirs::from("", "Shard", "Shard")
-        .map(|dirs| dirs.data_local_dir().to_path_buf())
-        .context(tr("Не удалось определить папку данных приложения"))
+    Ok(config)
 }
 
 #[cfg(test)]

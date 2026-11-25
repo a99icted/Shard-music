@@ -5,6 +5,7 @@ use super::*;
 pub(super) enum SettingsCategory {
     Customization,
     Performance,
+    Updates,
     Audio,
     Storage,
     Ignoring,
@@ -580,10 +581,7 @@ impl MusicApp {
                     .children(
                         [(
                             SettingsCategory::Performance,
-                            localized_format!(
-                                "Окно и производительность",
-                                "Window and performance"
-                            ),
+                            localized_format!("Производительность", "Performance"),
                         )]
                         .into_iter()
                         .enumerate()
@@ -600,6 +598,17 @@ impl MusicApp {
                                 },
                             ))
                         }),
+                    )
+                    .child(
+                        self.button(
+                            "settings-updates",
+                            &localized_format!("Обновление", "Updates"),
+                            self.settings_category == SettingsCategory::Updates,
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.settings_category = SettingsCategory::Updates;
+                            cx.notify();
+                        })),
                     )
                     .child(
                         self.button(
@@ -678,6 +687,9 @@ impl MusicApp {
                     .child(label.clone())
             }));
         match self.settings_category {
+            SettingsCategory::Updates => {
+                view = view.child(self.update_settings(cx));
+            }
             SettingsCategory::Performance => {
                 view = view.child(self.performance_settings(cx));
             }

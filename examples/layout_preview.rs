@@ -16,6 +16,21 @@ mod ui {
         app.settings_category = settings::SettingsCategory::Ignoring;
     }
 
+    pub fn show_updates(app: &mut MusicApp, available: bool, collapsed: bool) {
+        // Keep the fixture stable; manual checks still exercise the real API.
+        app.updates.automatic_checks = None;
+        app.home_open = false;
+        app.settings_open = true;
+        app.settings_category = settings::SettingsCategory::Updates;
+        app.preferences.sidebar_collapsed = collapsed;
+        #[cfg(debug_assertions)]
+        if available {
+            app.updates.available = Some(shard::updates::AvailableUpdate::preview());
+        }
+        #[cfg(not(debug_assertions))]
+        let _ = available;
+    }
+
     pub fn show_devices(app: &mut MusicApp, code: &str, cx: &mut Context<MusicApp>) {
         app.start_sync(cx);
         app.sync_service.as_ref().unwrap().pair(code).unwrap();
@@ -428,6 +443,9 @@ fn main() -> Result<()> {
         .find_map(|arg| arg.strip_prefix("--background="))
         .map(std::path::PathBuf::from);
     let show_ignored = options.iter().any(|arg| arg == "--ignored");
+    let show_updates = options.iter().any(|arg| arg == "--updates");
+    let available_update = options.iter().any(|arg| arg == "--update-available");
+    let collapsed_sidebar = options.iter().any(|arg| arg == "--collapsed");
     let show_devices = options.iter().any(|arg| arg == "--devices");
     let simulate_download = options.iter().any(|arg| arg == "--download");
     let simulate_sync = options.iter().any(|arg| arg == "--sync");
@@ -616,6 +634,9 @@ fn main() -> Result<()> {
                         }
                         if show_ignored {
                             ui::show_ignored(&mut app);
+                        }
+                        if show_updates {
+                            ui::show_updates(&mut app, available_update, collapsed_sidebar);
                         }
                         if simulate_download {
                             ui::simulate_download(&mut app, cx);

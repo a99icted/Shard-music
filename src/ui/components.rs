@@ -1597,6 +1597,7 @@ impl Render for MusicApp {
                     .child(self.footer(compact, cx))
                     .into_any_element()
             })
+            .children(self.floating_update_notice(viewport, cx))
             .children(self.modal_view(viewport, cx))
             .child(self.cursor_companion.clone())
     }
