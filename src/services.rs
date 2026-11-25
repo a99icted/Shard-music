@@ -316,6 +316,7 @@ impl TrackService {
         let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
         let info = info.unwrap_or_default();
         let artwork_url = info.thumbnail.clone();
+        let artwork_fallback = info.thumbnail_fallback.clone();
         let embedded = tag
             .and_then(|tag| tag.pictures().first())
             .map(|p| p.data().to_vec());
@@ -375,8 +376,12 @@ impl TrackService {
             // Metadata services provide the album cover; embedded art is the offline fallback.
             let downloaded = artwork_url
                 .as_deref()
-                .and_then(|url| crate::artwork::download(url).ok())
-                .is_some_and(|bytes| crate::artwork::save(&cover, &bytes).is_ok());
+                .into_iter()
+                .chain(artwork_fallback.as_deref())
+                .any(|url| {
+                    crate::artwork::download(url)
+                        .is_ok_and(|bytes| crate::artwork::save(&cover, &bytes).is_ok())
+                });
             if !downloaded {
                 if let Some(bytes) = embedded {
                     let _ = crate::artwork::save(&cover, &bytes);

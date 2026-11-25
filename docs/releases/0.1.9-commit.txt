@@ -1,0 +1,13 @@
+fix: fetch complete Spotify collections and preserve track artwork
+
+Replace truncated Spotify embed lists with paginated anonymous web-player
+queries for playlists and albums. Resolve current query hashes dynamically,
+preserve source order, and reject incomplete or inconsistent page results.
+
+Use each Spotify playlist track's own artwork, falling back to the matched
+YouTube thumbnail when the image is missing or cannot be downloaded.
+Keep the playlist cover on the collection and retain album artwork behavior.
+
+Add pagination, incomplete-response, and artwork regression tests, plus
+network checks for complete playlists, paged albums, and sample downloads.
+Document the import behavior and prepare the Windows 0.1.9 hotfix installer.

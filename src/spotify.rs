@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+mod web;
+
 /// Accept only canonical public track/playlist/album links, including localized and embed links.
 pub fn validate_spotify_url(input: &str) -> Result<url::Url> {
     let url = url::Url::parse(input.trim()).context(tr("Вставьте HTTPS-ссылку Spotify"))?;
@@ -48,6 +50,9 @@ pub(crate) fn fetch(url: &url::Url, cancel: &AtomicBool) -> Result<Collection> {
         .timeout_global(Some(Duration::from_secs(25)))
         .build()
         .new_agent();
+    if url.path().starts_with("/playlist/") || url.path().starts_with("/album/") {
+        return web::fetch(&agent, url, cancel);
+    }
     let endpoint = format!("https://open.spotify.com/embed{}", url.path());
     let html = fetch_embed_html(&agent, &endpoint, cancel)?;
     ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
@@ -150,6 +155,7 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
             )
         })?;
     let is_collection = !url.path().starts_with("/track/");
+    let use_collection_artwork = !url.path().starts_with("/playlist/");
     ensure!(
         text(entity, "uri")
             == format!(
@@ -192,7 +198,11 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
             tr("Spotify вернул трек без исполнителя")
         );
         tracks.push(CollectionTrack {
-            artwork_url: spotify_artwork(row).or_else(|| spotify_artwork(entity)),
+            artwork_url: spotify_artwork(row).or_else(|| {
+                use_collection_artwork
+                    .then(|| spotify_artwork(entity))
+                    .flatten()
+            }),
             title: title.into(),
             artist,
             url: track_url,
@@ -205,6 +215,7 @@ pub(crate) fn parse_embed(html: &str, url: &url::Url) -> Result<Collection> {
         title: text(entity, "title").into(),
         tracks,
         is_collection,
+        use_collection_artwork,
     })
 }
 

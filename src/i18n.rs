@@ -380,6 +380,9 @@ pub fn tr(text: &str) -> &str {
         }
         "Некорректный ответ Spotify" => "Invalid Spotify response",
         "Некорректные метаданные Spotify" => "Invalid Spotify metadata",
+        "Spotify не предоставил полный список треков" => {
+            "Spotify did not provide the complete track list"
+        }
         "Spotify вернул другую коллекцию" => {
             "Spotify returned a different collection"
         }

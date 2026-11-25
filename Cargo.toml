@@ -1,6 +1,6 @@
 [package]
 name = "shard"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2024"
 description = "Local music library and playlists built with Rust and GPUI"
 license = "MIT AND Apache-2.0"
@@ -12,6 +12,9 @@ desktop = ["dep:gpui", "dep:rfd", "dep:rodio", "dep:unicode-segmentation", "dep:
 
 [dependencies]
 anyhow = "1"
+base64 = "0.22"
+hmac = "0.12"
+sha1 = "0.10"
 directories = "6"
 lofty = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }

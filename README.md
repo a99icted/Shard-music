@@ -33,6 +33,8 @@ On Windows, music links enter a sequential download queue. A sidebar progress ca
 
 Artwork comes from embedded tags, Spotify / Yandex Music metadata and YouTube thumbnails. Imported albums automatically receive a playlist cover; adding a track can fill a missing playlist cover. Manual covers take priority. Fetch missing covers in **Settings → Storage** on Windows or **Settings → Appearance** on Android; the operation supports cancellation and does not download audio again. Windows also offers **Open storage folder**.
 
+Spotify playlists and albums are fetched in pages, checking the complete item count. Tracks imported from a Spotify playlist use their own Spotify artwork, falling back to the matched YouTube thumbnail if it is missing or cannot be downloaded. The playlist cover represents only the collection. Album imports retain their album artwork for tracks. Previously saved artwork is not replaced automatically.
+
 Windows artwork has two local versions: a normal cover (640 × 640 for new imports) and a 96 × 96 preview for track rows, the player and small playlist cards. Existing covers receive previews in the background without blocking library navigation. The decoded image cache is limited to 96 entries / 32 MiB and releases unused GPU image slots; the sidebar only creates visible playlist rows. These limits apply to the desktop image cache, not total application memory.
 
 Choose **Ignore track** from a track's **⋯** menu or use the ban icon beside the playback timeline. Ignored tracks have a badge and remain in the library and playlists, but are excluded from the normal queue, shuffle, autoplay and repeats. An explicit direct play is allowed once. Ignoring clears Favorites; removing the ignore flag does not restore the favorite. **Settings → Ignoring** lets you play a track, unignore it, delete its stored audio, or delete all ignored tracks with confirmation.
@@ -69,7 +71,7 @@ Choose an asset from [Releases](https://github.com/a99icted/Shard-music/releases
 
 | Platform | Version | Asset |
 | --- | --- | --- |
-| Windows 10 (2004+) / Windows 11, x64 | 0.1.6 | `Shard-0.1.6-Setup-x64.exe` |
+| Windows 10 (2004+) / Windows 11, x64 | 0.1.9 | `Shard-0.1.9-Setup-x64.exe` |
 | Android 8.0+, ARM64 phones | 0.1.8 | `Shard-Android-0.1.8-arm64-v8a.apk` |
 | Android 8.0+, x86_64 devices / emulators | 0.1.8 | `Shard-Android-0.1.8-x86_64.apk` |
 

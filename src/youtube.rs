@@ -85,6 +85,8 @@ impl YoutubeDownloadReport {
 #[derive(Default, Deserialize)]
 pub(crate) struct DownloadInfo {
     pub thumbnail: Option<String>,
+    #[serde(skip)]
+    pub thumbnail_fallback: Option<String>,
     pub title: Option<String>,
     pub track: Option<String>,
     pub artist: Option<String>,

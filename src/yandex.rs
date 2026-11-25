@@ -228,6 +228,7 @@ fn parse(result: &Value, is_collection: bool) -> Result<Collection> {
         title,
         tracks,
         is_collection,
+        use_collection_artwork: true,
     })
 }
 
