@@ -707,10 +707,7 @@ impl MusicApp {
     fn queue_panel(&self, overlay: bool, cx: &mut Context<Self>) -> AnyElement {
         let colors = self.colors();
         let state = self.player.state();
-        let current = state
-            .track_id
-            .and_then(|id| self.track_index.get(&id))
-            .and_then(|index| self.tracks.get(*index));
+        let current = state.track_id.and_then(|id| self.find_playback_track(id));
         let mut panel = div()
             .id("queue-panel")
             .w(px(288.))
@@ -828,11 +825,7 @@ impl MusicApp {
                                             .text_color(rgb(colors.muted))
                                             .child((index + 1).to_string()),
                                     );
-                                if let Some(track) = app
-                                    .track_index
-                                    .get(&id)
-                                    .and_then(|index| app.tracks.get(*index))
-                                {
+                                if let Some(track) = app.find_playback_track(id) {
                                     row = row
                                         .child(app.track_artwork(track, 32.))
                                         .child(app.track_caption(track, false));
@@ -1041,10 +1034,7 @@ impl MusicApp {
     fn footer(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         let colors = self.colors();
         let state = self.player.state();
-        let current = state
-            .track_id
-            .and_then(|id| self.track_index.get(&id))
-            .and_then(|index| self.tracks.get(*index));
+        let current = state.track_id.and_then(|id| self.find_playback_track(id));
         let mut caption = div()
             .flex_1()
             .min_w_0()
@@ -1061,15 +1051,18 @@ impl MusicApp {
                 .child(self.track_caption(track, false))
                 .child(
                     self.icon_button("ignore-playing-track", "⊘", self.ignored_ids.contains(&id))
+                        .when(id < 0, |s| s.invisible())
                         .tooltip(|_, cx| {
                             cx.new(|_| {
                                 super::sidebar::SidebarTooltip(tr("Игнорировать трек").into())
                             })
                             .into()
                         })
-                        .on_click(
-                            cx.listener(move |app, _, _, cx| app.set_track_ignored(id, true, cx)),
-                        ),
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            if id > 0 {
+                                app.set_track_ignored(id, true, cx);
+                            }
+                        })),
                 )
                 .child(
                     div()
@@ -1098,7 +1091,12 @@ impl MusicApp {
                                 })),
                         )
                         .child(self.button_feedback(8.))
-                        .on_click(cx.listener(move |app, _, _, cx| app.toggle_favorite(id, cx))),
+                        .when(id > 0, |s| {
+                            s.on_click(
+                                cx.listener(move |app, _, _, cx| app.toggle_favorite(id, cx)),
+                            )
+                        })
+                        .when(id < 0, |s| s.invisible()),
                 )
         } else {
             caption.child(
@@ -1150,15 +1148,18 @@ impl MusicApp {
                             .items_center()
                             .justify_center()
                             .text_lg()
-                            .child(
+                            .child(if state.buffering {
+                                self.search_spinner("player-buffering", 20.)
+                            } else {
                                 svg()
                                     .path(if current.is_some() && !state.paused {
                                         "icons/pause.svg"
                                     } else {
                                         "icons/play.svg"
                                     })
-                                    .size_5(),
-                            )
+                                    .size_5()
+                                    .into_any_element()
+                            })
                             .child(self.button_feedback(20.))
                             .on_click(cx.listener(|app, _, _, cx| app.toggle_playback(cx))),
                     )
@@ -1330,8 +1331,9 @@ impl MusicApp {
         let compact = viewport.width < px(1100.);
         let dense = compact || viewport.height < px(700.);
         let short = viewport.height < px(620.);
-        let active_context =
-            state.track_id.is_some() && self.playback_playlist == self.selected_playlist;
+        let active_context = state.track_id.is_some()
+            && self.playback_playlist == self.selected_playlist
+            && self.playback_context == self.current_title();
         let controls = div()
             .flex_shrink_0()
             .flex()
@@ -1368,14 +1370,7 @@ impl MusicApp {
                     .flex()
                     .items_center()
                     .gap_4()
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .rounded_lg()
-                            .overflow_hidden()
-                            .child(self.search.clone()),
-                    )
+                    .child(div().flex_1().min_w_0().child(self.search_controls(cx)))
                     .child(
                         self.button(
                             "import",
@@ -1654,6 +1649,9 @@ impl MusicApp {
     }
 
     pub(super) fn track_artwork(&self, track: &Track, size: f32) -> AnyElement {
+        if let Some((_, result)) = self.discovery.previews.get(&track.id) {
+            return self.search_artwork(result, size);
+        }
         let colors = self.colors();
         if !self
             .preview_paths
@@ -1834,14 +1832,16 @@ impl MusicApp {
                                 .into_any_element()
                         } else if self.settings_open {
                             self.settings_view(cx)
-                        } else if self.home_open {
+                        } else if self.discovery.online {
+                            self.online_search_view(cx)
+                        } else if self.home_open && self.search.read(cx).value().is_empty() {
                             self.home_view(viewport, cx)
                         } else {
                             content.into_any_element()
                         },
                     )
                     .children(
-                        (!self.home_open && !self.settings_open && {
+                        (!self.home_open && !self.settings_open && !self.discovery.online && {
                             let top = self.collection_list.logical_scroll_top();
                             top.item_ix > 0 || top.offset_in_item > px(180.)
                         })

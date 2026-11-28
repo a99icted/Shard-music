@@ -1,6 +1,6 @@
 [package]
 name = "shard"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2024"
 description = "Local music library and playlists built with Rust and GPUI"
 license = "MIT AND Apache-2.0"
@@ -8,7 +8,7 @@ license = "MIT AND Apache-2.0"
 [features]
 default = ["desktop"]
 test-build = []
-desktop = ["dep:gpui", "dep:rfd", "dep:rodio", "dep:unicode-segmentation", "dep:raw-window-handle", "dep:async-channel", "dep:windows", "dep:resvg", "dep:embed-resource"]
+desktop = ["dep:gpui", "dep:rfd", "dep:rodio", "dep:symphonia", "dep:unicode-segmentation", "dep:raw-window-handle", "dep:async-channel", "dep:windows", "dep:resvg", "dep:embed-resource"]
 
 [dependencies]
 anyhow = "1"
@@ -33,6 +33,7 @@ uuid = { version = "1", features = ["v4"] }
 gpui = { version = "0.2.2", optional = true }
 rfd = { version = "0.15", optional = true }
 rodio = { version = "0.20", optional = true, features = ["symphonia-all"] }
+symphonia = { version = "0.5.5", optional = true, default-features = false, features = ["aac", "isomp4"] }
 unicode-segmentation = { version = "1", optional = true }
 raw-window-handle = { version = "0.6", optional = true }
 async-channel = { version = "2", optional = true }

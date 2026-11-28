@@ -22,7 +22,49 @@ pub(super) enum CustomizationCategory {
     Cursor,
 }
 
+impl SettingsCategory {
+    fn icon(self) -> &'static str {
+        match self {
+            Self::Customization => "icons/palette.svg",
+            Self::Performance => "icons/gauge.svg",
+            Self::Updates => "icons/download.svg",
+            Self::Audio => "icons/volume.svg",
+            Self::Storage => "icons/hard-drive.svg",
+            Self::Ignoring => "icons/ban.svg",
+            Self::Language => "icons/globe.svg",
+            Self::Synchronization => "icons/refresh-cw.svg",
+            Self::ConnectedDevices => "icons/smartphone.svg",
+        }
+    }
+}
+
+impl CustomizationCategory {
+    fn icon(self) -> &'static str {
+        match self {
+            Self::Themes => "icons/palette.svg",
+            Self::Backgrounds => "icons/image.svg",
+            Self::Pets => "icons/paw-print.svg",
+            Self::Cursor => "icons/mouse-pointer.svg",
+        }
+    }
+}
+
 impl MusicApp {
+    fn settings_tab(
+        &self,
+        id: impl Into<ElementId>,
+        label: &str,
+        icon: &'static str,
+        active: bool,
+    ) -> Stateful<Div> {
+        self.button(id, "", active)
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(svg().path(icon).size(px(18.)).flex_shrink_0())
+            .child(label.to_owned())
+    }
+
     fn audio_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         let colors = self.colors();
         let state = self.player.state();
@@ -562,121 +604,58 @@ impl MusicApp {
                     .child(tr("Настройки")),
             )
             .child(
-                div()
-                    .flex()
-                    .flex_shrink_0()
-                    .gap_3()
-                    .flex_wrap()
-                    .child(
-                        self.button(
-                            "settings-customization",
-                            tr("Кастомизация"),
-                            self.settings_category == SettingsCategory::Customization,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Customization;
-                            cx.notify();
-                        })),
-                    )
-                    .children(
-                        [(
+                div().flex().flex_shrink_0().gap_3().flex_wrap().children(
+                    [
+                        (
+                            SettingsCategory::Customization,
+                            tr("Кастомизация").to_owned(),
+                        ),
+                        (
                             SettingsCategory::Performance,
                             localized_format!("Производительность", "Performance"),
-                        )]
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, (category, label))| {
-                            self.button(
-                                ("settings-extra", i as u64),
-                                &label,
-                                self.settings_category == category,
-                            )
-                            .on_click(cx.listener(
-                                move |app, _, _, cx| {
-                                    app.settings_category = category;
-                                    cx.notify();
-                                },
-                            ))
-                        }),
-                    )
-                    .child(
-                        self.button(
-                            "settings-updates",
-                            &localized_format!("Обновление", "Updates"),
-                            self.settings_category == SettingsCategory::Updates,
+                        ),
+                        (
+                            SettingsCategory::Updates,
+                            localized_format!("Обновление", "Updates"),
+                        ),
+                        (SettingsCategory::Audio, localized_format!("Звук", "Audio")),
+                        (
+                            SettingsCategory::Storage,
+                            localized_format!("Хранилище", "Storage"),
+                        ),
+                        (SettingsCategory::Language, tr("Язык").to_owned()),
+                        (SettingsCategory::Ignoring, tr("Игнорирование").to_owned()),
+                        (
+                            SettingsCategory::Synchronization,
+                            tr("Синхронизация").to_owned(),
+                        ),
+                        (
+                            SettingsCategory::ConnectedDevices,
+                            tr("Подключённые устройства").to_owned(),
+                        ),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(_, (category, _))| {
+                        *category != SettingsCategory::ConnectedDevices
+                            || self.sync_service.is_some()
+                    })
+                    .map(|(index, (category, label))| {
+                        self.settings_tab(
+                            ("settings-category", index as u64),
+                            &label,
+                            category.icon(),
+                            self.settings_category == category,
                         )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Updates;
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        self.button(
-                            "settings-audio",
-                            &localized_format!("Звук", "Audio"),
-                            self.settings_category == SettingsCategory::Audio,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Audio;
-                            app.player.refresh_output_devices();
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        self.button(
-                            "settings-storage",
-                            &localized_format!("Хранилище", "Storage"),
-                            self.settings_category == SettingsCategory::Storage,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Storage;
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        self.button(
-                            "settings-language",
-                            tr("Язык"),
-                            self.settings_category == SettingsCategory::Language,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Language;
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        self.button(
-                            "settings-ignoring",
-                            tr("Игнорирование"),
-                            self.settings_category == SettingsCategory::Ignoring,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Ignoring;
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        self.button(
-                            "settings-sync",
-                            tr("Синхронизация"),
-                            self.settings_category == SettingsCategory::Synchronization,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::Synchronization;
-                            cx.notify();
-                        })),
-                    )
-                    .children(self.sync_service.is_some().then(|| {
-                        self.button(
-                            "settings-devices",
-                            tr("Подключённые устройства"),
-                            self.settings_category == SettingsCategory::ConnectedDevices,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            app.settings_category = SettingsCategory::ConnectedDevices;
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            app.settings_category = category;
+                            if category == SettingsCategory::Audio {
+                                app.player.refresh_output_devices();
+                            }
                             cx.notify();
                         }))
-                    })),
+                    }),
+                ),
             )
             .children(self.notifications(cx))
             .children(self.busy.as_ref().map(|label| {
@@ -779,9 +758,10 @@ impl MusicApp {
                         .into_iter()
                         .enumerate()
                         .map(|(i, (category, label))| {
-                            self.button(
+                            self.settings_tab(
                                 ("customization-tab", i as u64),
                                 &label,
+                                category.icon(),
                                 self.customization_category == category,
                             )
                             .on_click(cx.listener(

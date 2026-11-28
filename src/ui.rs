@@ -11,6 +11,8 @@ mod cursor;
 mod devices;
 #[path = "ui/downloads.rs"]
 mod downloads;
+#[path = "ui/duplicates.rs"]
+mod duplicates;
 use downloads::DownloadResult;
 #[path = "ui/home.rs"]
 mod home;
@@ -22,6 +24,8 @@ mod image_cache;
 mod now_playing;
 #[path = "ui/progress.rs"]
 mod progress;
+#[path = "ui/search.rs"]
+mod search;
 #[path = "ui/settings.rs"]
 mod settings;
 #[path = "ui/sidebar.rs"]
@@ -96,7 +100,7 @@ enum Modal {
     SyncHelp,
     SyncOptions(shard::sync::SyncSelection),
     SyncOptionsHelp(shard::sync::SyncSelection),
-    SyncDuplicates,
+    Duplicates,
     PlaylistActions(Playlist),
     EditTrack(Track),
     PlaylistAppearance(i64),
@@ -142,8 +146,8 @@ pub struct MusicApp {
     sync_input: Entity<TextInput>,
     sync_qr: Option<PathBuf>,
     sync_job_generation: u64,
-    sync_duplicate_requests: Option<mpsc::Receiver<synchronization::DuplicateRequest>>,
-    sync_duplicate_prompt: Option<synchronization::DuplicatePrompt>,
+    sync_duplicate_requests: Option<mpsc::Receiver<duplicates::DuplicateRequest>>,
+    duplicate_prompt: Option<duplicates::DuplicatePrompt>,
     settings_open: bool,
     updates: updates::UpdateUi,
     storage_moving: bool,
@@ -190,16 +194,19 @@ pub struct MusicApp {
     input: Entity<TextInput>,
     artist_input: Entity<TextInput>,
     search: Entity<TextInput>,
+    discovery: search::SearchUi,
     focus: FocusHandle,
     busy: Option<String>,
     message: Option<String>,
     error: Option<String>,
     player: Player,
-    pending_downloads: std::collections::VecDeque<String>,
+    pending_downloads: std::collections::VecDeque<downloads::DownloadRequest>,
     active_download: Option<String>,
+    active_download_collection: Option<shard::youtube::search::CollectionDownload>,
     download_history: Vec<DownloadResult>,
     download_progress: Option<mpsc::Receiver<YoutubeProgress>>,
     download_cancel: Option<Arc<AtomicBool>>,
+    download_duplicate_requests: Option<mpsc::Receiver<duplicates::DuplicateRequest>>,
     preferences: Preferences,
     preferences_writer: PreferencesWriter,
     data_directory: PathBuf,
@@ -216,8 +223,13 @@ impl MusicApp {
     fn set_language(&mut self, language: shard::i18n::Language, cx: &mut Context<Self>) {
         self.preferences.language = language;
         shard::i18n::set_language(language);
+        let online = self.discovery.online;
         self.search.update(cx, |input, cx| {
-            input.set_placeholder(tr("Поиск по названию или исполнителю"));
+            input.set_placeholder(if online {
+                tr("Поиск на YouTube")
+            } else {
+                tr("Поиск по названию или исполнителю")
+            });
             cx.notify();
         });
         if let Some(id) = self.playback_playlist {
@@ -262,8 +274,9 @@ impl MusicApp {
     }
 
     pub fn new(db: Database, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let search = cx.new(|cx| TextInput::new(tr("Поиск по названию или исполнителю"), cx));
-        cx.observe(&search, |_, _, cx| cx.notify()).detach();
+        let search = cx.new(|cx| TextInput::new(tr("Поиск по названию или исполнителю"), cx).with_rounded_corners(12.));
+        cx.observe(&search, |app, _, cx| app.search_changed(cx))
+            .detach();
         let focus = cx.focus_handle();
         let data_directory = db.root().to_path_buf();
         let preferences = Preferences::load(&data_directory);
@@ -304,7 +317,7 @@ impl MusicApp {
             sync_qr: None,
             sync_job_generation: 0,
             sync_duplicate_requests: None,
-            sync_duplicate_prompt: None,
+            duplicate_prompt: None,
             settings_open: false,
             updates: Default::default(),
             storage_moving: false,
@@ -351,6 +364,7 @@ impl MusicApp {
             input: cx.new(|cx| TextInput::new("", cx)),
             artist_input: cx.new(|cx| TextInput::new(tr("Исполнитель"), cx)),
             search,
+            discovery: search::SearchUi::new(),
             focus,
             busy: None,
             message: None,
@@ -358,9 +372,11 @@ impl MusicApp {
             player,
             pending_downloads: Default::default(),
             active_download: None,
+            active_download_collection: None,
             download_history: vec![],
             download_progress: None,
             download_cancel: None,
+            download_duplicate_requests: None,
             last_volume: if preferences.volume > 0. {
                 preferences.volume
             } else {
@@ -435,7 +451,10 @@ impl MusicApp {
         let changes = app.player.subscribe_changes();
         cx.spawn_in(window, async move |this, cx| {
             while changes.recv().await.is_ok() {
-                if this.update_in(cx, |_, _, cx| cx.notify()).is_err() {
+                if this.update_in(cx, |app, _, cx| {
+                    app.finish_preview_start();
+                    cx.notify();
+                }).is_err() {
                     break;
                 }
             }
@@ -453,15 +472,22 @@ impl MusicApp {
                         let snapshot = (progress.0, progress.1);
                         let mut changed = last_player != Some(snapshot);
                         changed |= app.poll_update_progress();
-                        if let Some(request) = app
-                            .sync_duplicate_requests
-                            .as_ref()
-                            .and_then(|receiver| receiver.try_recv().ok())
-                        {
-                            app.sync_duplicate_prompt =
-                                Some(synchronization::DuplicatePrompt::new(request));
-                            app.open_modal(Modal::SyncDuplicates, window, cx);
-                            changed = true;
+                        if app.duplicate_prompt.is_none() {
+                            if let Some(request) = app
+                                .sync_duplicate_requests
+                                .as_ref()
+                                .and_then(|receiver| receiver.try_recv().ok())
+                                .or_else(|| {
+                                    app.download_duplicate_requests
+                                        .as_ref()
+                                        .and_then(|receiver| receiver.try_recv().ok())
+                                })
+                            {
+                                app.duplicate_prompt =
+                                    Some(duplicates::DuplicatePrompt::new(request));
+                                app.open_modal(Modal::Duplicates, window, cx);
+                                changed = true;
+                            }
                         }
                         if let Some(service) = &app.sync_service {
                             let status = service.status();
@@ -622,6 +648,7 @@ impl MusicApp {
                             app.preferences.autoplay,
                         );
                         app.tracks = tracks;
+                        app.update_search_matches();
                         app.playlists = playlists;
                         app.visible_duration_ms =
                             visible.iter().filter_map(|t| t.duration_ms).sum();
@@ -736,6 +763,9 @@ impl MusicApp {
     }
 
     fn open_modal(&mut self, modal: Modal, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(self.modal, Some(Modal::Duplicates)) && !matches!(modal, Modal::Duplicates) {
+            self.cancel_duplicate_review();
+        }
         self.commit_playlist_name(cx);
         self.header_color_draft = None;
         let has_input = matches!(
@@ -788,6 +818,10 @@ impl MusicApp {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
+        if self.modal.is_none() && self.discovery.dismiss_suggestions() {
+            cx.notify();
+            return;
+        }
         if self.now_playing_open {
             self.toggle_now_playing(window, cx);
             return;
@@ -796,8 +830,8 @@ impl MusicApp {
             self.open_modal(Modal::SyncOptions(selection), window, cx);
             return;
         }
-        if matches!(self.modal, Some(Modal::SyncDuplicates)) {
-            self.cancel_sync_duplicates();
+        if matches!(self.modal, Some(Modal::Duplicates)) {
+            self.cancel_duplicate_review();
         }
         self.commit_playlist_name(cx);
         if self.modal.take().is_none() && self.preferences.queue_visible {
@@ -808,6 +842,13 @@ impl MusicApp {
     }
 
     fn submit(&mut self, _: &Submit, window: &mut Window, cx: &mut Context<Self>) {
+        if self.modal.is_none()
+            && self.discovery.online
+            && self.search.focus_handle(cx).is_focused(window)
+        {
+            self.submit_online_search(cx);
+            return;
+        }
         match self.modal.clone() {
             Some(Modal::EditTrack(track)) => {
                 let service = self.tracks_service.clone();
@@ -860,14 +901,14 @@ impl MusicApp {
                     }
                 };
                 if self.active_download.as_ref() == Some(&url)
-                    || self.pending_downloads.contains(&url)
+                    || self.pending_downloads.iter().any(|request| request.url == url)
                 {
                     self.message = Some(localized_format!(
                         "Эта ссылка уже в очереди загрузок",
                         "This link is already queued"
                     ));
                 } else {
-                    self.pending_downloads.push_back(url);
+                    self.pending_downloads.push_back(url.into());
                     self.start_next_download(cx);
                     self.input.update(cx, |input, cx| {
                         input.reset();
@@ -979,7 +1020,12 @@ impl MusicApp {
 
     fn filtered_tracks(&self, cx: &App) -> Vec<Track> {
         let query = self.search.read(cx).value().to_lowercase();
-        self.visible_tracks
+        let tracks = if self.home_open && !query.is_empty() {
+            &self.tracks
+        } else {
+            &self.visible_tracks
+        };
+        tracks
             .iter()
             .filter(|track| {
                 query.is_empty()
@@ -998,11 +1044,13 @@ impl MusicApp {
     }
 
     fn play(&mut self, track: Track, cx: &mut Context<Self>) {
+        self.cancel_pending_preview();
         let state = self.player.state();
         let query = self.search.read(cx).value();
         if state.track_id == Some(track.id) {
             self.player.toggle();
         } else if self.playback_playlist == self.selected_playlist
+            && self.playback_context == self.current_title()
             && self.playback_query == query
             && state.queue.contains(track.id)
         {
@@ -1051,8 +1099,10 @@ impl MusicApp {
     }
 
     fn play_collection(&mut self, cx: &mut Context<Self>) {
+        self.cancel_pending_preview();
         if self.player.state().track_id.is_some()
             && self.playback_playlist == self.selected_playlist
+            && self.playback_context == self.current_title()
         {
             self.player.toggle();
         } else if let Some(track) = self
@@ -1318,10 +1368,29 @@ impl MusicApp {
                 tr("Как обрабатывать дубликаты"),
                 tr("Выберите, что делать с треками, которые уже есть на другом устройстве.").into(),
             ),
-            Modal::SyncDuplicates => (
-                tr("ПЕРЕДАЧА МУЗЫКИ"),
+            Modal::Duplicates => (
+                if self
+                    .duplicate_prompt
+                    .as_ref()
+                    .is_some_and(|p| p.is_download())
+                {
+                    tr("Загрузки")
+                } else {
+                    tr("ПЕРЕДАЧА МУЗЫКИ")
+                },
                 tr("Найдены дубликаты"),
-                tr("Выберите: использовать имеющийся трек или передать ещё одну копию.").into(),
+                if self
+                    .duplicate_prompt
+                    .as_ref()
+                    .is_some_and(|p| p.is_download())
+                {
+                    localized_format!(
+                        "Выберите: использовать имеющийся трек или скачать ещё одну копию.",
+                        "Choose whether to reuse the existing track or download another copy."
+                    )
+                } else {
+                    tr("Выберите: использовать имеющийся трек или передать ещё одну копию.").into()
+                },
             ),
             Modal::SyncHelp => (
                 tr("ПОМОЩЬ"),
@@ -1548,8 +1617,8 @@ impl MusicApp {
                         })),
                 );
             }
-            Modal::SyncDuplicates => {
-                card = card.child(self.sync_duplicates_view(cx));
+            Modal::Duplicates => {
+                card = card.child(self.duplicates_view(cx));
             }
             Modal::SyncHelp => {
                 card = card.child(self.sync_help()).child(
@@ -1766,6 +1835,7 @@ impl MusicApp {
                         ),
                     )
                     .child(self.input.clone())
+                    .child(self.download_options_view(cx))
                     .child(self.button("download", if self.active_download.is_some() { tr("Добавить в очередь") } else { tr("Скачать и добавить") }, true).on_click(
                         cx.listener(|app, _, window, cx| app.submit(&Submit, window, cx)),
                     ))
@@ -1976,7 +2046,9 @@ impl MusicApp {
                     .child(busy.clone()),
             );
         }
-        if let Some(cancel) = &self.download_cancel {
+        if let Some(cancel) = &self.download_cancel
+            && !matches!(self.modal, Some(Modal::Duplicates))
+        {
             let cancel = cancel.clone();
             card = card.child(
                 self.button("cancel-download", tr("Остановить загрузку"), false)

@@ -11,6 +11,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "youtube/search.rs"]
+pub mod search;
+
 #[derive(Debug, Clone)]
 pub struct YoutubeProgress {
     pub completed: usize,
@@ -50,6 +53,7 @@ pub struct YoutubeFailure {
 #[derive(Debug, Default)]
 pub struct YoutubeDownloadReport {
     pub tracks: Vec<Track>,
+    pub reused: usize,
     pub failures: Vec<YoutubeFailure>,
     pub total: usize,
     pub playlist_id: Option<i64>,
@@ -59,8 +63,8 @@ pub struct YoutubeDownloadReport {
 impl YoutubeDownloadReport {
     pub fn message(&self) -> String {
         localized_format!(
-            "{}Добавлено треков: {} из {}. Ошибок: {}.",
-            "{}Tracks added: {} of {}. Errors: {}.",
+            "{}Добавлено треков: {} из {}. Без новых копий: {}. Ошибок: {}.",
+            "{}Tracks added: {} of {}. Reused: {}. Errors: {}.",
             if self.cancelled {
                 tr("Загрузка остановлена. ")
             } else {
@@ -68,6 +72,7 @@ impl YoutubeDownloadReport {
             },
             self.tracks.len(),
             self.total,
+            self.reused,
             self.failures.len()
         )
     }
@@ -94,8 +99,11 @@ pub(crate) struct DownloadInfo {
     pub duration: Option<f64>,
 }
 
+#[derive(Clone, Default)]
 pub(crate) struct YoutubeEntry {
     pub title: String,
+    pub artist: String,
+    pub duration_ms: Option<i64>,
     pub url: Option<url::Url>,
 }
 pub(crate) struct YoutubePlaylist {
@@ -112,6 +120,13 @@ pub(crate) trait YoutubeSource {
         None
     }
     fn playlist(&self, url: &url::Url, cancel: &AtomicBool) -> Result<YoutubePlaylist>;
+    fn entry(&self, url: &url::Url, _: &AtomicBool) -> Result<YoutubeEntry> {
+        Ok(YoutubeEntry {
+            title: tr("Трек YouTube").into(),
+            url: Some(url.clone()),
+            ..Default::default()
+        })
+    }
     fn track(&self, url: &url::Url, staging: &Path, cancel: &AtomicBool)
     -> Result<DownloadedAudio>;
 }
@@ -238,6 +253,32 @@ pub(crate) fn select_search_results(
 }
 
 impl YoutubeSource for YoutubeClient {
+    fn entry(&self, url: &url::Url, cancel: &AtomicBool) -> Result<YoutubeEntry> {
+        let mut command = self.command();
+        command
+            .args([
+                "--no-playlist",
+                "--dump-single-json",
+                "--skip-download",
+                "--",
+            ])
+            .arg(url.as_str());
+        let output = run_command(command, cancel, Duration::from_secs(120))?;
+        ensure!(output.success, "yt-dlp: {}", output.error());
+        let info: DownloadInfo = serde_json::from_slice(&output.stdout)?;
+        Ok(YoutubeEntry {
+            title: info
+                .track
+                .or(info.title)
+                .unwrap_or_else(|| tr("Трек YouTube").into()),
+            artist: info.artist.or(info.uploader).unwrap_or_default(),
+            duration_ms: info
+                .duration
+                .filter(|v| v.is_finite() && *v >= 0.)
+                .map(|v| (v * 1000.) as i64),
+            url: Some(url.clone()),
+        })
+    }
     fn playlist(&self, url: &url::Url, cancel: &AtomicBool) -> Result<YoutubePlaylist> {
         let mut command = self.command();
         command
@@ -312,6 +353,10 @@ struct FlatEntry {
     title: Option<String>,
     url: Option<String>,
     webpage_url: Option<String>,
+    track: Option<String>,
+    artist: Option<String>,
+    uploader: Option<String>,
+    duration: Option<f64>,
 }
 
 fn parse_playlist(json: &[u8]) -> Result<YoutubePlaylist> {
@@ -334,6 +379,7 @@ fn parse_playlist(json: &[u8]) -> Result<YoutubePlaylist> {
                         index + 1
                     ),
                     url: None,
+                    ..Default::default()
                 };
             };
             let url = entry
@@ -357,10 +403,16 @@ fn parse_playlist(json: &[u8]) -> Result<YoutubePlaylist> {
                 });
             YoutubeEntry {
                 title: entry
-                    .title
+                    .track
+                    .or(entry.title)
                     .filter(|t| !t.trim().is_empty())
                     .unwrap_or_else(|| localized_format!("Трек №{}", "Track #{}", index + 1)),
                 url,
+                artist: entry.artist.or(entry.uploader).unwrap_or_default(),
+                duration_ms: entry
+                    .duration
+                    .filter(|v| v.is_finite() && *v >= 0.)
+                    .map(|v| (v * 1000.) as i64),
             }
         })
         .collect();
@@ -492,6 +544,16 @@ mod tests {
         assert!(playlist.entries[4].url.is_none());
         assert!(parse_playlist(br#"{"entries":[]}"#).is_err());
         assert!(parse_playlist(b"invalid").is_err());
+    }
+
+    #[test]
+    fn playlist_parser_preserves_metadata_for_duplicate_detection() {
+        let playlist = parse_playlist(br#"{"entries":[{"id":"first","title":"Video title","track":"Song","artist":"Artist","duration":180.25},{"id":"second","title":"Fallback","uploader":"Channel"}]}"#).unwrap();
+        assert_eq!(playlist.entries[0].title, "Song");
+        assert_eq!(playlist.entries[0].artist, "Artist");
+        assert_eq!(playlist.entries[0].duration_ms, Some(180250));
+        assert_eq!(playlist.entries[1].artist, "Channel");
+        assert_eq!(playlist.entries[1].duration_ms, None);
     }
 
     #[cfg(windows)]

@@ -24,10 +24,7 @@ impl MusicApp {
     ) -> AnyElement {
         let colors = self.colors();
         let state = self.player.state();
-        let track = state
-            .track_id
-            .and_then(|id| self.track_index.get(&id))
-            .and_then(|i| self.tracks.get(*i));
+        let track = state.track_id.and_then(|id| self.find_playback_track(id));
         let cover = track
             .map(|t| shard::artwork::track_path(&self.data_directory, t))
             .filter(|p| self.preview_paths.contains(p));
@@ -71,7 +68,9 @@ impl MusicApp {
             .justify_center()
             .gap_4()
             .px_6();
-        if let Some(cover) = cover {
+        if let Some((_, result)) = track.and_then(|t| self.discovery.previews.get(&t.id)) {
+            center = center.child(self.search_artwork(result, size));
+        } else if let Some(cover) = cover {
             center = center.child(
                 img(cover)
                     .image_cache(&self.images)
@@ -120,9 +119,12 @@ impl MusicApp {
                         cx.new(|_| super::sidebar::SidebarTooltip(tr("Игнорировать трек").into()))
                             .into()
                     })
-                    .on_click(
-                        cx.listener(move |app, _, _, cx| app.set_track_ignored(id, true, cx)),
-                    ),
+                    .when(id < 0, |s| s.invisible())
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        if id > 0 {
+                            app.set_track_ignored(id, true, cx);
+                        }
+                    })),
             );
         }
         buttons = buttons
@@ -164,6 +166,7 @@ impl MusicApp {
             buttons = buttons.child(
                 div()
                     .id("favorite-fullscreen")
+                    .when(id < 0, |s| s.invisible())
                     .size_10()
                     .rounded_full()
                     .flex()
@@ -185,7 +188,11 @@ impl MusicApp {
                                 colors.muted
                             })),
                     )
-                    .on_click(cx.listener(move |app, _, _, cx| app.toggle_favorite(id, cx))),
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        if id > 0 {
+                            app.toggle_favorite(id, cx);
+                        }
+                    })),
             );
         }
         controls = controls.child(buttons);

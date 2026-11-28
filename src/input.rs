@@ -32,6 +32,7 @@ actions!(
 );
 
 pub struct TextInput {
+    corner_radius: Pixels,
     focus_handle: FocusHandle,
     content: SharedString,
     placeholder: SharedString,
@@ -621,6 +622,7 @@ impl Render for TextInput {
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .bg(rgb(colors.input))
+            .rounded(self.corner_radius)
             .line_height(px(26.))
             .text_size(px(15.))
             .child(
@@ -629,6 +631,7 @@ impl Render for TextInput {
                     .w_full()
                     .p(px(8.))
                     .bg(rgb(colors.input))
+                    .rounded(self.corner_radius)
                     .child(TextElement { input: cx.entity() }),
             )
     }
@@ -641,6 +644,10 @@ impl Focusable for TextInput {
 }
 
 impl TextInput {
+    pub fn with_rounded_corners(mut self, radius: f32) -> Self {
+        self.corner_radius = px(radius);
+        self
+    }
     pub fn set_value(&mut self, value: &str) {
         self.reset();
         self.content = value.to_owned().into();
@@ -651,6 +658,7 @@ impl TextInput {
     }
     pub fn new(placeholder: &str, cx: &mut Context<Self>) -> Self {
         Self {
+            corner_radius: px(0.),
             focus_handle: cx.focus_handle(),
             content: "".into(),
             placeholder: placeholder.to_owned().into(),

@@ -15,6 +15,11 @@ mod ui {
         app.settings_open = true;
         app.settings_category = settings::SettingsCategory::Ignoring;
     }
+    pub fn show_search(app: &mut MusicApp, cx: &mut Context<MusicApp>) {
+        app.set_search_mode(true, cx);
+        app.search.update(cx, |input, cx| { input.set_value("Daft Punk"); cx.notify(); });
+        app.submit_online_search(cx);
+    }
 
     pub fn show_updates(app: &mut MusicApp, available: bool, collapsed: bool) {
         // Keep the fixture stable; manual checks still exercise the real API.
@@ -393,7 +398,7 @@ mod ui {
     pub fn simulate_download(app: &mut MusicApp, cx: &mut Context<MusicApp>) {
         app.launch_download(
             "https://youtube.com/watch?v=preview".into(),
-            |_, _, cancel, sender| {
+            |_, _, cancel, sender, _| {
                 for completed in 0..12 {
                     sender.send(YoutubeProgress {
                         completed,
@@ -411,6 +416,60 @@ mod ui {
                     }
                 }
                 Ok(shard::youtube::YoutubeDownloadReport::default())
+            },
+            cx,
+        );
+    }
+
+    // Exercise the real review channel and shared dialog without contacting a music service.
+    pub fn simulate_download_duplicates(app: &mut MusicApp, cx: &mut Context<MusicApp>) {
+        app.launch_download(
+            "https://youtube.com/playlist?list=preview".into(),
+            |_, _, cancel, _, requests| {
+                let (response, receiver) = mpsc::channel();
+                requests.send(duplicates::DuplicateRequest {
+                    download: true,
+                    response,
+                    tracks: [
+                        shard::sync::DuplicateKind::SameSource,
+                        shard::sync::DuplicateKind::SimilarMetadata,
+                        shard::sync::DuplicateKind::IdenticalFile,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, kind)| shard::sync::DuplicateTrack {
+                        index,
+                        kind,
+                        title: format!("Тестовый трек {}", index + 1),
+                        artist: "Исполнитель / Artist".into(),
+                        existing_title: format!("Имеющийся трек {}", index + 1),
+                    })
+                    .collect(),
+                })?;
+                loop {
+                    if cancel.load(Ordering::Relaxed) {
+                        return Ok(shard::youtube::YoutubeDownloadReport {
+                            cancelled: true,
+                            ..Default::default()
+                        });
+                    }
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(Some(decisions)) => {
+                            return Ok(shard::youtube::YoutubeDownloadReport {
+                                total: 3,
+                                reused: decisions.iter().filter(|d| !d.copy).count(),
+                                ..Default::default()
+                            });
+                        }
+                        Ok(None) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                            return Ok(shard::youtube::YoutubeDownloadReport {
+                                cancelled: true,
+                                ..Default::default()
+                            });
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    }
+                }
             },
             cx,
         );
@@ -444,10 +503,12 @@ fn main() -> Result<()> {
         .map(std::path::PathBuf::from);
     let show_ignored = options.iter().any(|arg| arg == "--ignored");
     let show_updates = options.iter().any(|arg| arg == "--updates");
+    let show_search = options.iter().any(|arg| arg == "--search");
     let available_update = options.iter().any(|arg| arg == "--update-available");
     let collapsed_sidebar = options.iter().any(|arg| arg == "--collapsed");
     let show_devices = options.iter().any(|arg| arg == "--devices");
     let simulate_download = options.iter().any(|arg| arg == "--download");
+    let simulate_download_duplicates = options.iter().any(|arg| arg == "--download-duplicates");
     let simulate_sync = options.iter().any(|arg| arg == "--sync");
     let stress_artwork = options.iter().any(|arg| arg == "--artwork-stress");
     let check_startup_artwork = options.iter().any(|arg| arg == "--startup-artwork-check");
@@ -635,11 +696,15 @@ fn main() -> Result<()> {
                         if show_ignored {
                             ui::show_ignored(&mut app);
                         }
+                        if show_search { ui::show_search(&mut app, cx); }
                         if show_updates {
                             ui::show_updates(&mut app, available_update, collapsed_sidebar);
                         }
                         if simulate_download {
                             ui::simulate_download(&mut app, cx);
+                        }
+                        if simulate_download_duplicates {
+                            ui::simulate_download_duplicates(&mut app, cx);
                         }
                         if stress_artwork {
                             ui::stress_artwork(&mut app, window, cx);

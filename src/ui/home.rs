@@ -78,6 +78,7 @@ impl MusicApp {
             .flex()
             .flex_col()
             .gap(px(if dense { 20. } else { 28. }))
+            .child(self.search_controls(cx))
             .child(
                 div()
                     .flex_shrink_0()
@@ -175,6 +176,7 @@ impl MusicApp {
                                 ),
                         )
                         .on_click(cx.listener(move |app, _, _, cx| {
+                            app.set_search_mode(false, cx);
                             app.settings_open = false;
                             app.home_open = false;
                             app.selected_playlist = None;
@@ -288,6 +290,7 @@ impl MusicApp {
                             )),
                     )
                     .on_click(cx.listener(move |app, _, window, cx| {
+                        app.set_search_mode(false, cx);
                         app.settings_open = false;
                         app.home_open = false;
                         app.selected_playlist = Some(id);

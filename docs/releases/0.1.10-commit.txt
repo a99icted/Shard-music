@@ -1,0 +1,12 @@
+feat: add download duplicate review and prepare Windows 0.1.10
+
+Check library tracks and repeated collection entries before downloading from
+YouTube, Spotify and Yandex Music. Reuse LAN sync matching rules and the same
+review dialog, with individual choices or an apply-to-all option.
+
+Persist separate download warning and reuse preferences. Reuse existing audio
+in imported playlists, check downloaded content before import, and handle
+cancelled reviews, missing audio and failed earlier entries.
+
+Add regression tests and an isolated UI preview. Update documentation and
+prepare the Windows 0.1.10 installer and release notes.

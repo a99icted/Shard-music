@@ -1,8 +1,8 @@
 use crate::i18n::tr;
 use crate::localized_format;
 use crate::youtube::{
-    DownloadInfo, YoutubeClient, YoutubeDownloadReport, YoutubeEntry, YoutubeFailure,
-    YoutubePlaylist, YoutubeProgress, YoutubeSource, playlist_url,
+    DownloadInfo, YoutubeClient, YoutubeDownloadReport, YoutubeFailure, YoutubePlaylist,
+    YoutubeProgress, YoutubeSource, playlist_url,
 };
 use crate::{
     db::Database,
@@ -26,6 +26,10 @@ pub const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "flac", "wav", "ogg", "opus", "m4a", "aac", "aiff", "aif", "mp4",
 ];
 
+// Downloads and LAN transfers offer the same duplicate decisions and defaults.
+pub use crate::sync::SyncOptions as DownloadOptions;
+use crate::sync::{DuplicateDecision, DuplicateKind, DuplicateTrack};
+
 #[derive(Clone)]
 pub struct TrackService {
     db: Database,
@@ -33,11 +37,104 @@ pub struct TrackService {
 }
 
 impl TrackService {
+    pub fn download_search_collection_with_options(
+        &self,
+        collection: &crate::youtube::search::CollectionDownload,
+        cancel: &AtomicBool,
+        progress: impl FnMut(YoutubeProgress),
+        options: DownloadOptions,
+        mut decide: impl FnMut(&[DuplicateTrack]) -> Result<Vec<DuplicateDecision>>,
+    ) -> Result<YoutubeDownloadReport> {
+        self.download_search_collection_with_source(
+            collection,
+            &YoutubeClient::new(self.db.root())?,
+            cancel,
+            progress,
+            options,
+            &mut decide,
+        )
+    }
+
+    fn download_search_collection_with_source(
+        &self,
+        collection: &crate::youtube::search::CollectionDownload,
+        source: &impl YoutubeSource,
+        cancel: &AtomicBool,
+        progress: impl FnMut(YoutubeProgress),
+        options: DownloadOptions,
+        decide: &mut impl FnMut(&[DuplicateTrack]) -> Result<Vec<DuplicateDecision>>,
+    ) -> Result<YoutubeDownloadReport> {
+        use crate::youtube::{
+            YoutubeEntry,
+            search::{CollectionSource, ResultKind},
+        };
+        ensure!(
+            collection.collection.kind != ResultKind::Track,
+            "Expected an album or playlist"
+        );
+        ensure!(
+            !collection.tracks.is_empty(),
+            "The collection has no available tracks"
+        );
+        let entries = collection
+            .tracks
+            .iter()
+            .map(|track| {
+                ensure!(
+                    track.kind == ResultKind::Track,
+                    "Expected a track in the collection"
+                );
+                Ok(YoutubeEntry {
+                    title: track.title.clone(),
+                    artist: track.artist.clone(),
+                    duration_ms: track.duration_ms,
+                    url: Some(validate_youtube_url(&track.url)?),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let source = CollectionSource {
+            source,
+            collection: &collection.collection,
+        };
+        self.download_entries(
+            YoutubePlaylist {
+                title: collection.collection.title.clone(),
+                entries,
+            },
+            true,
+            &source,
+            cancel,
+            progress,
+            options,
+            decide,
+        )
+    }
+
     pub fn download_collection(
         &self,
         input: &str,
         cancel: &AtomicBool,
+        progress: impl FnMut(YoutubeProgress),
+    ) -> Result<YoutubeDownloadReport> {
+        self.download_collection_with_options(
+            input,
+            cancel,
+            progress,
+            DownloadOptions {
+                warn_duplicates: false,
+                ignore_duplicates: false,
+            },
+            |_| unreachable!(),
+        )
+    }
+
+    pub fn download_collection_with_options(
+        &self,
+        input: &str,
+        cancel: &AtomicBool,
         mut progress: impl FnMut(YoutubeProgress),
+        options: DownloadOptions,
+        mut decide: impl FnMut(&[DuplicateTrack]) -> Result<Vec<DuplicateDecision>>,
     ) -> Result<YoutubeDownloadReport> {
         let url = validate_music_url(input)?;
         if !matches!(
@@ -51,7 +148,16 @@ impl TrackService {
                     | "music.yandex.uz"
             )
         ) {
-            return self.download_youtube_collection(input, cancel, progress);
+            let url = validate_youtube_url(input)?;
+            let source = YoutubeClient::new(self.db.root())?;
+            return self.download_youtube_with_options(
+                &url,
+                &source,
+                cancel,
+                progress,
+                options,
+                &mut decide,
+            );
         }
         progress(YoutubeProgress {
             completed: 0,
@@ -82,6 +188,8 @@ impl TrackService {
             &source,
             cancel,
             progress,
+            options,
+            &mut decide,
         )
     }
     pub fn new(db: Database) -> Self {
@@ -309,49 +417,11 @@ impl TrackService {
                 "Unsupported audio format: {extension}"
             )
         );
-        // Parse before copying: a failed import must not leave a library entry or an orphan file.
-        let tagged = Probe::open(source)?
-            .read()
-            .context(tr("Не удалось прочитать аудиофайл"))?;
-        let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+        // Parse before copying: failed imports leave no entry or orphan file.
         let info = info.unwrap_or_default();
         let artwork_url = info.thumbnail.clone();
         let artwork_fallback = info.thumbnail_fallback.clone();
-        let embedded = tag
-            .and_then(|tag| tag.pictures().first())
-            .map(|p| p.data().to_vec());
-        let title = info
-            .track
-            .or_else(|| {
-                tag.and_then(|t| t.title())
-                    .map(|s| s.into_owned())
-                    .filter(|s| !s.trim().is_empty())
-            })
-            .or(info.title)
-            .unwrap_or_else(|| {
-                source
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned()
-            });
-        let artist = info
-            .artist
-            .or_else(|| {
-                tag.and_then(|t| t.artist())
-                    .map(|s| s.into_owned())
-                    .filter(|s| !s.trim().is_empty())
-            })
-            .or(info.uploader)
-            .unwrap_or_default();
-        let duration = tagged.properties().duration().as_millis();
-        let duration_ms = if duration > 0 {
-            Some(i64::try_from(duration)?)
-        } else {
-            info.duration
-                .filter(|v| v.is_finite() && *v >= 0.0)
-                .map(|v| (v * 1000.0) as i64)
-        };
+        let (title, artist, duration_ms, embedded) = audio_metadata(source, &info)?;
         let relative = format!("audio/{}.{}", Uuid::new_v4(), extension);
         let destination = self.db.root().join(&relative);
         let mut staged = tempfile::NamedTempFile::new_in(self.db.root().join("staging"))?;
@@ -407,7 +477,29 @@ impl TrackService {
         url: &url::Url,
         source: &impl YoutubeSource,
         cancel: &AtomicBool,
+        progress: impl FnMut(YoutubeProgress),
+    ) -> Result<YoutubeDownloadReport> {
+        self.download_youtube_with_options(
+            url,
+            source,
+            cancel,
+            progress,
+            DownloadOptions {
+                warn_duplicates: false,
+                ignore_duplicates: false,
+            },
+            &mut |_| unreachable!(),
+        )
+    }
+
+    fn download_youtube_with_options(
+        &self,
+        url: &url::Url,
+        source: &impl YoutubeSource,
+        cancel: &AtomicBool,
         mut progress: impl FnMut(YoutubeProgress),
+        options: DownloadOptions,
+        decide: &mut impl FnMut(&[DuplicateTrack]) -> Result<Vec<DuplicateDecision>>,
     ) -> Result<YoutubeDownloadReport> {
         let mut report = YoutubeDownloadReport::default();
         progress(YoutubeProgress {
@@ -432,13 +524,25 @@ impl TrackService {
         } else {
             YoutubePlaylist {
                 title: String::new(),
-                entries: vec![YoutubeEntry {
-                    title: tr("Трек YouTube").into(),
-                    url: Some(url.clone()),
+                entries: vec![match source.entry(url, cancel) {
+                    Ok(entry) => entry,
+                    Err(_) if cancel.load(Ordering::Relaxed) => {
+                        report.cancelled = true;
+                        return Ok(report);
+                    }
+                    Err(error) => return Err(error),
                 }],
             }
         };
-        self.download_entries(playlist, playlist_link.is_some(), source, cancel, progress)
+        self.download_entries(
+            playlist,
+            playlist_link.is_some(),
+            source,
+            cancel,
+            progress,
+            options,
+            decide,
+        )
     }
 
     fn download_entries(
@@ -448,6 +552,8 @@ impl TrackService {
         source: &impl YoutubeSource,
         cancel: &AtomicBool,
         mut progress: impl FnMut(YoutubeProgress),
+        options: DownloadOptions,
+        decide: &mut impl FnMut(&[DuplicateTrack]) -> Result<Vec<DuplicateDecision>>,
     ) -> Result<YoutubeDownloadReport> {
         let mut report = YoutubeDownloadReport {
             total: playlist.entries.len(),
@@ -457,6 +563,48 @@ impl TrackService {
             report.cancelled = true;
             return Ok(report);
         }
+        let local = self.download_candidates()?;
+        let entries = playlist
+            .entries
+            .iter()
+            .map(|entry| crate::download_duplicates::Entry {
+                url: entry
+                    .url
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                title: entry.title.clone(),
+                artist: entry.artist.clone(),
+                duration_ms: entry.duration_ms,
+            })
+            .collect::<Vec<_>>();
+        let duplicates = crate::download_duplicates::inspect(&local, &entries);
+        let prompts = duplicates
+            .iter()
+            .map(|d| DuplicateTrack {
+                index: d.index,
+                title: entries[d.index].title.clone(),
+                artist: entries[d.index].artist.clone(),
+                existing_title: d.existing_title.clone(),
+                kind: if d.kind == "same_source" {
+                    DuplicateKind::SameSource
+                } else {
+                    DuplicateKind::SimilarMetadata
+                },
+            })
+            .collect::<Vec<_>>();
+        let decisions = match review_download_duplicates(&prompts, options, decide) {
+            Err(_) if cancel.load(Ordering::Relaxed) => {
+                report.cancelled = true;
+                return Ok(report);
+            }
+            result => result?,
+        };
+        if cancel.load(Ordering::Relaxed) {
+            report.cancelled = true;
+            return Ok(report);
+        }
+        let mut resolved = vec![None::<Track>; entries.len()];
         let playlists = PlaylistService::new(self.db.clone());
         if is_playlist {
             let name: String = playlist.title.trim().chars().take(100).collect();
@@ -489,17 +637,58 @@ impl TrackService {
                 total: report.total,
                 current_title: Some(entry.title.clone()),
             });
+            let mut reused = false;
             let result = (|| -> Result<Track> {
+                let duplicate = duplicates.iter().find(|d| d.index == index);
+                let copy = decisions.get(&index).copied();
+                if copy == Some(false) {
+                    let existing = duplicate
+                        .and_then(|d| {
+                            d.existing_id
+                                .and_then(|id| self.repository.get(id).ok())
+                                .or_else(|| d.earlier_index.and_then(|i| resolved[i].clone()))
+                        })
+                        .filter(|t| self.audio_path(t).is_ok_and(|p| p.is_file()));
+                    if let Some(track) = existing {
+                        reused = true;
+                        return Ok(track);
+                    }
+                    // An earlier entry may have failed or a local file may have disappeared.
+                    // Download this entry rather than silently losing it from the playlist.
+                }
                 let url = entry.url.context(tr(
                     "YouTube не предоставил ссылку на этот трек (видео удалено или скрыто)",
                 ))?;
                 let staging = tempfile::tempdir_in(self.db.root().join("staging"))?;
                 let audio = source.track(&url, staging.path(), cancel)?;
                 ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+                // A source may expose richer metadata only after downloading. Also check
+                // byte-identical local audio, using the same cached hashes as LAN sync.
+                if copy != Some(true) && (options.warn_duplicates || options.ignore_duplicates) {
+                    if let Some((track, kind)) = self.downloaded_duplicate(&audio, &url, cancel)? {
+                        let prompt = DuplicateTrack {
+                            index,
+                            title: entry.title.clone(),
+                            artist: entry.artist.clone(),
+                            existing_title: track.title.clone(),
+                            kind,
+                        };
+                        let late = review_download_duplicates(&[prompt], options, decide)?;
+                        ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+                        if late.get(&index) == Some(&false) {
+                            reused = true;
+                            return Ok(track);
+                        }
+                    }
+                }
                 self.import_file(&audio.path, Some(url.to_string()), Some(audio.info))
             })();
             match result {
                 Ok(track) => {
+                    resolved[index] = Some(track.clone());
+                    if reused {
+                        report.reused += 1;
+                    }
                     if let Some(id) = report.playlist_id
                         && let Err(error) = playlists.add_track(id, track.id)
                     {
@@ -515,7 +704,9 @@ impl TrackService {
                         let _ = crate::appearance::AppearanceService::new(self.db.clone())
                             .set_cover_if_missing(id, &cover);
                     }
-                    report.tracks.push(track);
+                    if !reused {
+                        report.tracks.push(track);
+                    }
                 }
                 Err(_) if cancel.load(Ordering::Relaxed) => {
                     report.cancelled = true;
@@ -534,6 +725,139 @@ impl TrackService {
         }
         Ok(report)
     }
+
+    fn download_candidates(&self) -> Result<Vec<Track>> {
+        Ok(self
+            .list_tracks()?
+            .into_iter()
+            .filter(|t| self.audio_path(t).is_ok_and(|p| p.is_file()))
+            .collect())
+    }
+
+    fn downloaded_duplicate(
+        &self,
+        audio: &crate::youtube::DownloadedAudio,
+        url: &url::Url,
+        cancel: &AtomicBool,
+    ) -> Result<Option<(Track, DuplicateKind)>> {
+        let (title, artist, duration_ms, _) = audio_metadata(&audio.path, &audio.info)?;
+        let entry = crate::download_duplicates::Entry {
+            url: url.to_string(),
+            title,
+            artist,
+            duration_ms,
+        };
+        let local = self.download_candidates()?;
+        let size = fs::metadata(&audio.path)?.len();
+        let mut hash = None;
+        let conn = self.db.connect()?;
+        for track in &local {
+            ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+            let path = self.audio_path(track)?;
+            if !fs::metadata(&path).is_ok_and(|m| m.len() == size) {
+                continue;
+            }
+            if hash.is_none() {
+                hash = Some(crate::sync::hash_file(&audio.path, || {
+                    ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+                    Ok(())
+                })?);
+            }
+            let existing = crate::sync::indexed_hash(&conn, track, &path, || {
+                ensure!(!cancel.load(Ordering::Relaxed), tr("Загрузка остановлена"));
+                Ok(())
+            });
+            if existing.as_ref().ok() == hash.as_ref() {
+                return Ok(Some((track.clone(), DuplicateKind::IdenticalFile)));
+            }
+        }
+        Ok(crate::download_duplicates::inspect(&local, &[entry])
+            .first()
+            .and_then(|d| {
+                local.iter().find(|t| Some(t.id) == d.existing_id).map(|t| {
+                    (
+                        t.clone(),
+                        if d.kind == "same_source" {
+                            DuplicateKind::SameSource
+                        } else {
+                            DuplicateKind::SimilarMetadata
+                        },
+                    )
+                })
+            }))
+    }
+}
+
+fn review_download_duplicates(
+    tracks: &[DuplicateTrack],
+    options: DownloadOptions,
+    decide: &mut impl FnMut(&[DuplicateTrack]) -> Result<Vec<DuplicateDecision>>,
+) -> Result<std::collections::HashMap<usize, bool>> {
+    let mut result = std::collections::HashMap::new();
+    if tracks.is_empty() {
+        return Ok(result);
+    }
+    if options.warn_duplicates {
+        for decision in decide(tracks)? {
+            ensure!(
+                tracks.iter().any(|t| t.index == decision.index)
+                    && result.insert(decision.index, decision.copy).is_none(),
+                "Invalid duplicate decision"
+            );
+        }
+        ensure!(result.len() == tracks.len(), "Missing duplicate decisions");
+    } else {
+        result.extend(tracks.iter().map(|t| (t.index, !options.ignore_duplicates)));
+    }
+    Ok(result)
+}
+
+fn audio_metadata(
+    source: &Path,
+    info: &DownloadInfo,
+) -> Result<(String, String, Option<i64>, Option<Vec<u8>>)> {
+    let tagged = Probe::open(source)?
+        .read()
+        .context(tr("Не удалось прочитать аудиофайл"))?;
+    let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+    let embedded = tag
+        .and_then(|tag| tag.pictures().first())
+        .map(|p| p.data().to_vec());
+    let title = info
+        .track
+        .clone()
+        .or_else(|| {
+            tag.and_then(|t| t.title())
+                .map(|s| s.into_owned())
+                .filter(|s| !s.trim().is_empty())
+        })
+        .or(info.title.clone())
+        .unwrap_or_else(|| {
+            source
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
+        });
+    let artist = info
+        .artist
+        .clone()
+        .or_else(|| {
+            tag.and_then(|t| t.artist())
+                .map(|s| s.into_owned())
+                .filter(|s| !s.trim().is_empty())
+        })
+        .or(info.uploader.clone())
+        .unwrap_or_default();
+    let duration = tagged.properties().duration().as_millis();
+    let duration_ms = if duration > 0 {
+        Some(i64::try_from(duration)?)
+    } else {
+        info.duration
+            .filter(|v| v.is_finite() && *v >= 0.0)
+            .map(|v| (v * 1000.0) as i64)
+    };
+    Ok((title, artist, duration_ms, embedded))
 }
 
 pub fn validate_music_url(input: &str) -> Result<url::Url> {

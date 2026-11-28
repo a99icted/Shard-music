@@ -52,6 +52,7 @@ impl MusicApp {
                 .child(self.button_feedback(8.))
         };
         item = item.on_click(cx.listener(|app, _, _, cx| {
+            app.set_search_mode(false, cx);
             app.settings_open = false;
             app.home_open = false;
             app.modal = None;
@@ -125,6 +126,7 @@ impl MusicApp {
                 )
                 .child(self.brand_mark(36.))
                 .on_click(cx.listener(|app, _, window, cx| {
+                    app.set_search_mode(false, cx);
                     app.settings_open = false;
                     app.home_open = true;
                     app.modal = None;
@@ -141,6 +143,7 @@ impl MusicApp {
                 .text_xl()
                 .child(svg().path("icons/library.svg").size_5())
                 .on_click(cx.listener(|app, _, _, cx| {
+                    app.set_search_mode(false, cx);
                     app.settings_open = false;
                     app.home_open = false;
                     app.selected_playlist = None;
@@ -184,6 +187,7 @@ impl MusicApp {
                                 .mb_1()
                                 .child(self.playlist_artwork(playlist, 36.))
                                 .on_click(cx.listener(move |app, _, _, cx| {
+                                    app.set_search_mode(false, cx);
                                     app.settings_open = false;
                                     app.home_open = false;
                                     app.selected_playlist = Some(id);
@@ -345,6 +349,7 @@ impl MusicApp {
                     .id("home-logo")
                     .cursor_pointer()
                     .on_click(cx.listener(|app, _, window, cx| {
+                        app.set_search_mode(false, cx);
                         app.settings_open = false;
                         app.home_open = true;
                         app.modal = None;
@@ -373,6 +378,7 @@ impl MusicApp {
                 self.button("mini-home", tr("⌂ Главная"), false)
                     .py_2()
                     .on_click(cx.listener(|app, _, _, cx| {
+                        app.set_search_mode(false, cx);
                         app.settings_open = false;
                         app.home_open = true;
                         app.refresh(cx);
@@ -411,6 +417,7 @@ impl MusicApp {
                     .child(div().text_xs().child(self.tracks.len().to_string()))
                     .child(self.button_feedback(8.))
                     .on_click(cx.listener(|app, _, _, cx| {
+                        app.set_search_mode(false, cx);
                         app.settings_open = false;
                         app.home_open = false;
                         app.selected_playlist = None;
@@ -502,6 +509,7 @@ impl MusicApp {
                                             )
                                             .child(app.button_feedback(8.))
                                             .on_click(cx.listener(move |app, _, _, cx| {
+                                                app.set_search_mode(false, cx);
                                                 app.settings_open = false;
                                                 app.home_open = false;
                                                 app.selected_playlist = Some(id);

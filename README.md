@@ -31,6 +31,8 @@ The desktop home page initially shows two rows of playlists, with a button to ex
 
 On Windows, music links enter a sequential download queue. A sidebar progress card appears only while downloading; the queue and last 20 reports are also accessible through **Add music**. Stop the active download or remove waiting jobs. Stopping a job keeps imported tracks and proceeds to the next one. Downloads and reports last for the current app session. Playback and playlist customization remain available during downloads. Android persists download jobs separately; see the [Android guide](mobile/README.md).
 
+On Windows, **Add music** has separate **Warn about duplicates** and **Ignore duplicates** settings. As with synchronization, warnings are on and ignoring is off by default: choose to download a copy or reuse an existing track, individually or for all detected matches. With warnings off, the selected policy applies automatically. Source URLs, title, artist and duration (within 3 seconds) are checked before downloading, including repeated entries within a collection. Incomplete metadata is checked again after downloading and before importing, including a file-content comparison. Skipping a duplicate adds the existing track to the new playlist without another audio copy; entries with missing audio files are not reused. Cancelling a review stops the current download, then the queue continues and already saved tracks remain. Download preferences are saved independently of synchronization preferences.
+
 Artwork comes from embedded tags, Spotify / Yandex Music metadata and YouTube thumbnails. Imported albums automatically receive a playlist cover; adding a track can fill a missing playlist cover. Manual covers take priority. Fetch missing covers in **Settings → Storage** on Windows or **Settings → Appearance** on Android; the operation supports cancellation and does not download audio again. Windows also offers **Open storage folder**.
 
 Spotify playlists and albums are fetched in pages, checking the complete item count. Tracks imported from a Spotify playlist use their own Spotify artwork, falling back to the matched YouTube thumbnail if it is missing or cannot be downloaded. The playlist cover represents only the collection. Album imports retain their album artwork for tracks. Previously saved artwork is not replaced automatically.
@@ -71,7 +73,7 @@ Choose an asset from [Releases](https://github.com/a99icted/Shard-music/releases
 
 | Platform | Version | Asset |
 | --- | --- | --- |
-| Windows 10 (2004+) / Windows 11, x64 | 0.1.9 | `Shard-0.1.9-Setup-x64.exe` |
+| Windows 10 (2004+) / Windows 11, x64 | 0.1.10 | `Shard-0.1.10-Setup-x64.exe` |
 | Android 8.0+, ARM64 phones | 0.1.8 | `Shard-Android-0.1.8-arm64-v8a.apk` |
 | Android 8.0+, x86_64 devices / emulators | 0.1.8 | `Shard-Android-0.1.8-x86_64.apk` |
 
@@ -82,6 +84,8 @@ SHA-256 files accompany each installer / APK.
 Android APKs are optimized release builds signed with the project's current development key for sideloading. Allow APK installation for your browser or file manager when prompted. Android has its own bundled download components; the Windows tools are not required. See the [Android guide](mobile/README.md) for setup and source builds.
 
 ## Quick start (Windows)
+
+Search on Home and in the library uses an animated icon-only toggle: **folder** for the local library and **globe** for YouTube. Local search finds only tracks by title or artist. In Internet search, the filter icon inside the search field opens three checkboxes: Tracks, Albums and Playlists. Selected types constrain YouTube requests; changing filters refreshes results after 280 ms, and clearing all checkboxes stops search. YouTube suggestions are requested after 250 ms; matching cached completions appear immediately and HTTP connections are reused. Search uses YouTube Music directly, falling back to yt-dlp only when no tracks are found; choose a suggestion or press Enter / Search. Results include artwork and a Track, Album or Playlist badge, plus track duration and available YouTube play counts. ▶ streams audio in the player without importing an audio file. Playback preparation and buffering show animated indicators. Duration is resolved before playback; the timeline supports seeking and excludes buffering silence. Suggestions are cached for ten minutes and results for two minutes within the session. The circular + queues a download, a rotating indicator means queued or downloading, and ✓ marks a track already in your library. Downloads keep the results open. Expand albums and playlists to access individual tracks, Play all and Download all. Download all creates a separate collection in the playlist sidebar with the original name, artwork and track order; existing tracks are included according to the duplicate settings; the external link opens the original YouTube page. Online playback and downloads need yt-dlp and its bundled components, or the tools installed by `scripts/setup-youtube.ps1`.
 
 1. Click **Add music** to select local files or paste a YouTube / Spotify / Yandex Music link.
 2. Open a playlist, optionally choose a mode using its icon, and press **Listen**.

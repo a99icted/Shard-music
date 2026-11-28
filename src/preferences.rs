@@ -74,6 +74,8 @@ pub struct Preferences {
     pub update_notifications: bool,
     pub sync_warn_duplicates: bool,
     pub sync_ignore_duplicates: bool,
+    pub download_warn_duplicates: bool,
+    pub download_ignore_duplicates: bool,
     pub sync_enabled: bool,
     pub sync_device_id: String,
     pub sync_device_name: String,
@@ -105,6 +107,8 @@ impl Default for Preferences {
             update_notifications: true,
             sync_warn_duplicates: true,
             sync_ignore_duplicates: false,
+            download_warn_duplicates: true,
+            download_ignore_duplicates: false,
             sync_enabled: false,
             sync_device_id: uuid::Uuid::new_v4().to_string(),
             sync_device_name: std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Shard".into()),
@@ -182,6 +186,8 @@ mod tests {
         assert!(!defaults.sidebar_collapsed);
         assert!(defaults.sync_warn_duplicates);
         assert!(!defaults.sync_ignore_duplicates);
+        assert!(defaults.download_warn_duplicates);
+        assert!(!defaults.download_ignore_duplicates);
         let preferences = Preferences {
             update_notifications: false,
             language: crate::i18n::Language::English,
@@ -204,6 +210,8 @@ mod tests {
             repeat: crate::queue::RepeatMode::One,
             sync_warn_duplicates: false,
             sync_ignore_duplicates: true,
+            download_warn_duplicates: false,
+            download_ignore_duplicates: true,
             ..Default::default()
         };
         preferences.save(root.path()).unwrap();
@@ -230,6 +238,8 @@ mod tests {
         assert_eq!(reopened.repeat, crate::queue::RepeatMode::One);
         assert!(!reopened.sync_warn_duplicates);
         assert!(reopened.sync_ignore_duplicates);
+        assert!(!reopened.download_warn_duplicates);
+        assert!(reopened.download_ignore_duplicates);
         Preferences {
             progress_pet: crate::pets::ProgressPet::Pig,
             cursor_pet: crate::pets::CursorPet::Pig,

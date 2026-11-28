@@ -1,5 +1,18 @@
 use super::*;
 
+pub(super) struct DownloadRequest {
+    pub url: String,
+    pub collection: Option<shard::youtube::search::CollectionDownload>,
+}
+impl From<String> for DownloadRequest {
+    fn from(url: String) -> Self {
+        Self {
+            url,
+            collection: None,
+        }
+    }
+}
+
 pub(super) struct DownloadResult {
     pub url: String,
     pub message: String,
@@ -11,15 +24,56 @@ impl MusicApp {
         if self.active_download.is_some() {
             return;
         }
-        let Some(url) = self.pending_downloads.pop_front() else {
+        let Some(request) = self.pending_downloads.pop_front() else {
             return;
         };
+        self.active_download_collection = request.collection.clone();
+        let options = shard::services::DownloadOptions {
+            warn_duplicates: self.preferences.download_warn_duplicates,
+            ignore_duplicates: self.preferences.download_ignore_duplicates,
+        };
         self.launch_download(
-            url,
-            |service, url, cancel, sender| {
-                service.download_collection(&url, &cancel, |progress| {
+            request.url,
+            move |service, url, cancel, sender, requests| {
+                let progress = |progress| {
                     let _ = sender.send(progress);
-                })
+                };
+                let decide = |duplicates: &[shard::sync::DuplicateTrack]| {
+                    let (response, receiver) = mpsc::channel();
+                    requests
+                        .send(duplicates::DuplicateRequest {
+                            tracks: duplicates.to_vec(),
+                            response,
+                            download: true,
+                        })
+                        .map_err(|_| anyhow::anyhow!(tr("Загрузка остановлена")))?;
+                    loop {
+                        anyhow::ensure!(
+                            !cancel.load(Ordering::Relaxed),
+                            tr("Загрузка остановлена")
+                        );
+                        match receiver.recv_timeout(Duration::from_millis(200)) {
+                            Ok(Some(decisions)) => return Ok(decisions),
+                            Ok(None) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                                cancel.store(true, Ordering::Relaxed);
+                                anyhow::bail!(tr("Загрузка остановлена"));
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => {}
+                        }
+                    }
+                };
+                if let Some(collection) = request.collection {
+                    service.download_search_collection_with_options(
+                        &collection,
+                        &cancel,
+                        progress,
+                        options,
+                        decide,
+                    )
+                } else {
+                    service
+                        .download_collection_with_options(&url, &cancel, progress, options, decide)
+                }
             },
             cx,
         );
@@ -33,6 +87,7 @@ impl MusicApp {
             String,
             Arc<AtomicBool>,
             mpsc::Sender<YoutubeProgress>,
+            mpsc::Sender<duplicates::DuplicateRequest>,
         ) -> Result<shard::youtube::YoutubeDownloadReport>
         + Send
         + 'static,
@@ -46,19 +101,33 @@ impl MusicApp {
         });
         let service = self.tracks_service.clone();
         let (sender, receiver) = mpsc::channel();
+        let (requests, duplicate_requests) = mpsc::channel();
+        self.download_duplicate_requests = Some(duplicate_requests);
         let cancel = Arc::new(AtomicBool::new(false));
         self.download_progress = Some(receiver);
         self.download_cancel = Some(cancel.clone());
         let task = cx.background_executor().spawn(async move {
-            let result = job(service, url.clone(), cancel, sender);
+            let result = job(service, url.clone(), cancel, sender, requests);
             (url, result)
         });
         cx.spawn(async move |this, cx| {
             let (url, result) = task.await;
             let _ = this.update(cx, |app, cx| {
                 app.active_download = None;
+                app.active_download_collection = None;
                 app.download_progress = None;
                 app.download_cancel = None;
+                app.download_duplicate_requests = None;
+                if app
+                    .duplicate_prompt
+                    .as_ref()
+                    .is_some_and(|p| p.is_download())
+                {
+                    app.duplicate_prompt = None;
+                    if matches!(app.modal, Some(Modal::Duplicates)) {
+                        app.modal = None;
+                    }
+                }
                 app.job_progress = None;
                 let (message, details) = match result {
                     Ok(report) => (report.message(), report.error_details()),
@@ -84,6 +153,34 @@ impl MusicApp {
         })
         .detach();
         cx.notify();
+    }
+
+    pub(super) fn download_options_view(&self, cx: &mut Context<Self>) -> AnyElement {
+        div().flex().flex_col().gap_2()
+            .child(self.duplicate_option_toggle("warn-download-duplicates", tr("Предупреждать о дубликатах"),
+                &localized_format!("Показать найденные совпадения перед скачиванием.", "Show detected matches before downloading."),
+                self.preferences.download_warn_duplicates)
+                .on_click(cx.listener(|app, _, _, cx| {
+                    app.preferences.download_warn_duplicates = !app.preferences.download_warn_duplicates;
+                    app.save_preferences(); cx.notify();
+                })))
+            .child(self.duplicate_option_toggle("ignore-download-duplicates", tr("Игнорировать дубликаты"),
+                tr("Использовать уже имеющиеся треки, не создавая новые копии."), self.preferences.download_ignore_duplicates)
+                .on_click(cx.listener(|app, _, _, cx| {
+                    app.preferences.download_ignore_duplicates = !app.preferences.download_ignore_duplicates;
+                    app.save_preferences(); cx.notify();
+                })))
+            .child(div().text_xs().text_color(rgb(self.colors().muted)).child(
+                if self.preferences.download_warn_duplicates {
+                    localized_format!("При совпадении можно использовать имеющийся трек или скачать копию. Решение можно применить ко всем найденным дубликатам.",
+                        "For matches, reuse the existing track or download a copy. Apply your choice to all detected duplicates if needed.")
+                } else if self.preferences.download_ignore_duplicates {
+                    tr("Совпадения будут пропущены без предупреждения. В плейлист добавятся уже имеющиеся треки.").into()
+                } else {
+                    localized_format!("Предупреждения выключены: найденные дубликаты будут скачаны как новые копии.",
+                        "Warnings are off: detected duplicates will be downloaded as new copies.")
+                }))
+            .into_any_element()
     }
 
     pub(super) fn downloads_view(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -134,7 +231,7 @@ impl MusicApp {
                     ),
             );
         }
-        for (index, url) in self.pending_downloads.iter().enumerate() {
+        for (index, request) in self.pending_downloads.iter().enumerate() {
             view = view.child(
                 div()
                     .flex()
@@ -156,7 +253,13 @@ impl MusicApp {
                             .text_sm()
                             .overflow_hidden()
                             .text_ellipsis()
-                            .child(url.clone()),
+                            .child(
+                                request
+                                    .collection
+                                    .as_ref()
+                                    .map(|c| c.collection.title.clone())
+                                    .unwrap_or_else(|| request.url.clone()),
+                            ),
                     )
                     .child(
                         self.icon_button(("remove-download", index as u64), "×", false)

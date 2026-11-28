@@ -80,6 +80,29 @@ pub fn tr(text: &str) -> &str {
         "Открыть папку хранилища" => "Open storage folder",
         "Автопродолжение включено" => "Autoplay is on",
         "Автопродолжение выключено" => "Autoplay is off",
+        "Локальный поиск" => "Local search",
+        "Поиск в интернете" => "Internet search",
+        "Поиск на YouTube" => "Search YouTube",
+        "Найти" => "Search",
+        "Фильтры поиска" => "Search filters",
+        "Альбомы" => "Albums",
+        "Плейлисты" => "Playlists",
+        "Выберите хотя бы один тип результатов" => "Select at least one result type",
+        "Ищем на YouTube…" => "Searching YouTube…",
+        "Найдите треки, альбомы и плейлисты на YouTube" => {
+            "Find tracks, albums and playlists on YouTube"
+        }
+        "Трек" => "Track",
+        "Альбом" => "Album",
+        "Плейлист" => "Playlist",
+        "В коллекции" => "In your library",
+        "В очереди загрузок" => "Queued for download",
+        "прослушиваний" => "plays",
+        "Подготовка воспроизведения…" => "Preparing playback…",
+        "Слушать" => "Play",
+        "Скачать в коллекцию" => "Download to library",
+        "▶  Слушать всё" => "▶  Play all",
+        "Скачать всё" => "Download all",
         "Поиск по названию или исполнителю" => {
             "Search by title or artist"
         }

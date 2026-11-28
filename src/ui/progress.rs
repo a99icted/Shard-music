@@ -62,7 +62,7 @@ impl PlaybackProgress {
                         if !window.is_window_active() && !view.config.inactive {
                             return;
                         }
-                        let (track, _, position) = view.player.progress();
+                        let (track, position, duration) = view.player.timing();
                         if track != view.config.track {
                             return;
                         }
@@ -70,7 +70,11 @@ impl PlaybackProgress {
                         if animated {
                             view.phase = (view.phase + 1) % 840;
                         }
-                        if (position / 100 != view.position / 100) || animated {
+                        let duration_changed = duration.is_some_and(|d| d != view.config.duration);
+                        if let Some(duration) = duration {
+                            view.config.duration = duration;
+                        }
+                        if (position / 100 != view.position / 100) || animated || duration_changed {
                             view.position = position;
                             cx.notify();
                         }
@@ -157,10 +161,12 @@ impl PlaybackProgress {
 impl Render for PlaybackProgress {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = self.config.theme.palette();
-        let position = self
-            .preview
-            .unwrap_or_else(|| self.player.progress().2)
-            .min(self.config.duration);
+        let position = self.preview.unwrap_or_else(|| self.player.progress().2);
+        let position = if self.config.duration > 0 {
+            position.min(self.config.duration)
+        } else {
+            position
+        };
         let value = if self.config.duration > 0 {
             position as f32 / self.config.duration as f32
         } else {
@@ -363,13 +369,14 @@ impl MusicApp {
     }
     pub(super) fn configure_progress(&self, window: &mut Window, cx: &mut Context<Self>) {
         let state = self.player.progress();
-        let duration = state
-            .0
-            .and_then(|id| self.track_index.get(&id))
-            .and_then(|i| self.tracks.get(*i))
-            .and_then(|t| t.duration_ms)
-            .unwrap_or(0)
-            .max(0) as u64;
+        let duration = self.player.timing().2.unwrap_or_else(|| {
+            state
+                .0
+                .and_then(|id| self.find_playback_track(id))
+                .and_then(|t| t.duration_ms)
+                .unwrap_or(0)
+                .max(0) as u64
+        });
         let color = match self.preferences.progress_pet {
             ProgressPet::Cat => self.preferences.cat_color,
             ProgressPet::Bird => self.preferences.bird_color,

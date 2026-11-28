@@ -65,7 +65,9 @@ impl MetadataSource {
                 .tracks
                 .iter()
                 .map(|track| YoutubeEntry {
-                    title: format!("{} — {}", track.artist, track.title),
+                    title: track.title.clone(),
+                    artist: track.artist.clone(),
+                    duration_ms: track.duration_ms.and_then(|v| i64::try_from(v).ok()),
                     url: Some(track.url.clone()),
                 })
                 .collect(),

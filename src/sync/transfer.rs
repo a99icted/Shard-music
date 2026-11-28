@@ -761,7 +761,7 @@ fn file_stamp(path: &Path) -> Result<(i64, String)> {
         .to_string();
     Ok((i64::try_from(metadata.len())?, modified))
 }
-fn indexed_hash(
+pub(crate) fn indexed_hash(
     conn: &rusqlite::Connection,
     track: &Track,
     path: &Path,

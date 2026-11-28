@@ -1,4 +1,4 @@
-//! Inspect internet collections before transferring audio using LAN sync's metadata rules.
+//! Inspect internet collections before downloading audio using LAN sync's metadata rules.
 use crate::{
     models::Track,
     sync::{durations_match, metadata_key},
@@ -109,7 +109,9 @@ pub(crate) fn inspect(local: &[Track], entries: &[Entry]) -> Vec<Duplicate> {
                 });
             }
         }
-        earlier_sources.entry(source).or_insert(index);
+        if !source.is_empty() {
+            earlier_sources.entry(source).or_insert(index);
+        }
         if let Some(key) = key {
             earlier_metadata.entry(key).or_default().push(index);
         }
@@ -171,5 +173,19 @@ mod tests {
         assert_eq!(found.len(), 2);
         assert_eq!(found[0].existing_id, Some(42));
         assert_eq!(found[1].kind, "similar_metadata");
+    }
+
+    #[test]
+    fn missing_sources_are_not_matches_by_themselves() {
+        assert!(
+            inspect(
+                &[],
+                &[
+                    entry("", "Unavailable one", "", None),
+                    entry("", "Unavailable two", "", None)
+                ]
+            )
+            .is_empty()
+        );
     }
 }

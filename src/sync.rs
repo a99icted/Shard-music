@@ -28,7 +28,7 @@ mod transfer;
 pub use transfer::{
     DuplicateDecision, DuplicateKind, DuplicateTrack, SyncOptions, SyncSelection, TransferReport,
 };
-pub(crate) use transfer::{durations_match, metadata_key};
+pub(crate) use transfer::{durations_match, indexed_hash, metadata_key};
 
 const VERSION: u32 = 2;
 const MAX_JSON: usize = 8 * 1024 * 1024;
@@ -730,7 +730,7 @@ fn local_ip() -> IpAddr {
         .map(if_addrs::Interface::ip)
         .unwrap_or(Ipv4Addr::LOCALHOST.into())
 }
-fn hash_file(path: &Path, mut active: impl FnMut() -> Result<()>) -> Result<String> {
+pub(crate) fn hash_file(path: &Path, mut active: impl FnMut() -> Result<()>) -> Result<String> {
     let mut file = File::open(path)?;
     let mut hash = Sha256::new();
     let mut buffer = [0; 64 * 1024];
